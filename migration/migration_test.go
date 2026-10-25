@@ -8,7 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 
 	_ "modernc.org/sqlite"
 )
@@ -141,8 +141,8 @@ func TestRunNilArgs(t *testing.T) {
 func TestRunLoadFailureZeroSideEffect(t *testing.T) {
 	db, base := newTestDB(t)
 	fsys := mapfs(map[string]string{
-		"v1.0/1000_001_ok.sql": "CREATE TABLE t (v TEXT);",
-		"v1.0/bad_name.sql":    "INSERT INTO t (v) VALUES ('a');",
+		"v1.0/1000_001_ok.sql":  "CREATE TABLE t (v TEXT);",
+		"v1.0/bad_name.sql":     "INSERT INTO t (v) VALUES ('a');",
 		"v1.0/1000_007_dup.sql": "SELECT 1;",
 		"v1.0/1000_7_dup2.sql":  "SELECT 1;",
 	})

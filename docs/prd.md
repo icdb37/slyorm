@@ -86,6 +86,8 @@ business ─┬─→ slyorm（门面） ──→ dbwm ──→ sql.DB
 
 ## 3. 分包与职责
 
+模块路径 `github.com/icdb37/slyorm`；能力包的 import 路径 = 模块路径 + 目录名（如 `github.com/icdb37/slyorm/dbwm`），门面根包的路径是 `github.com/icdb37/slyorm`（包名仍是 `slyorm`）。
+
 | 包 | 一句话职责 | 落地 | 详规 |
 | --- | --- | --- | --- |
 | `slyorm`（根包） | 业务门面：`Collection` 单表访问、`DB` 句柄、分页协议、通用类型、审计列、`Migrate` 转发 | `slyorm.go` / `collection.go` / `collection_helper.go` / `list.go` / `types.go` / `audit.go` / `migrate.go` | [prd-slyorm.md](prd-slyorm.md) |

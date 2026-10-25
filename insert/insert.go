@@ -11,7 +11,7 @@
 //		ID      int64   `dbx:"id,autopk"`     // 自增主键：零值不进 INSERT，成功后回填
 //		Name    string  `dbx:"name"`           // 零值写 Go 零值
 //		Age     int     `dbx:"age,null"`      // 零值写 SQL NULL
-//		Address Address `dbx:"addr_,inline"`  // 展开成 addr_city、addr_screet
+//		Address Address `dbx:"addr_,inline"`  // 展开成 addr_city、addr_street
 //		Payload Extra   `dbx:"payload,json"`  // 整个值存成一列 JSON
 //		Remark  string  `dbx:"-"`             // 完全不参与
 //	}
@@ -43,7 +43,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 )
 
 // ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ type Result struct {
 // **Table 留空由调用方填**（门面填 Collection 绑定的表名；本包独立执行路径
 // 填表名机制推导的结果）—— IR 构造不依赖表名，投影可以是匿名结构体。
 // 默认值函数（deff=）在此执行并写回结构体；自增列零值不进列清单
-//（AutoPKColumn 记下它），显式赋值则照常写入。
+// （AutoPKColumn 记下它），显式赋值则照常写入。
 func BuildInsertIR(ctx context.Context, v any) (*dbwm.Insert, error) {
 	elem, m, err := prepareWrite(v)
 	if err != nil {

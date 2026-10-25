@@ -566,8 +566,8 @@ type CreatedQuery struct {
 
 ```go
 import (
-	"slyorm"
-	"slyorm/dbwm" // 注入形态直接用 dbwm 的方言与连接类型（IR 同源于 dbwm）
+	"github.com/icdb37/slyorm"
+	"github.com/icdb37/slyorm/dbwm" // 注入形态直接用 dbwm 的方言与连接类型（IR 同源于 dbwm）
 )
 
 // 句柄（转发 dbwm：方言、库型识别、事务、关闭）
@@ -629,7 +629,7 @@ slyorm.RegisterUser(fn) // fn: 断言 csx.Context 取操作者，见 R12 示例
 
 ## 7. 与既有包的关系（改造清单）
 
-与 [prd-dbwm.md](prd-dbwm.md) §7 的规划一致并在此落定，另有一条目录决策：**`dml/` 层级取消，能力包全部上移到模块根**（import 路径变为 `slyorm/<能力>`，如 `slyorm/dbwm`；AGENTS §2 的目录约定随实现同步修订）。改造分两轮（先查询后写入），完成后 `util/` 不再含数据库概念：
+与 [prd-dbwm.md](prd-dbwm.md) §7 的规划一致并在此落定，另有一条目录决策：**`dml/` 层级取消，能力包全部上移到模块根**（import 路径变为 `github.com/icdb37/slyorm/<能力>`，如 `github.com/icdb37/slyorm/dbwm`；AGENTS §2 的目录约定随实现同步修订）。改造分两轮（先查询后写入），完成后 `util/` 不再含数据库概念：
 
 | 包 | 现状 | 改造后 |
 | --- | --- | --- |
@@ -668,7 +668,7 @@ slyorm.RegisterUser(fn) // fn: 断言 csx.Context 取操作者，见 R12 示例
 
 | # | 议题 | 结论 | 章节 |
 | --- | --- | --- | --- |
-| 1 | 门面位置 | **模块根 `package slyorm`**（`import "slyorm"`）：业务只 import 根包；能力包在模块根下按关注点分包（`slyorm/<能力>`，`dml/` 层级取消） | §7 §10 |
+| 1 | 门面位置 | **模块根 `package slyorm`**（`import "github.com/icdb37/slyorm"`）：业务只 import 根包；能力包在模块根下按关注点分包（`github.com/icdb37/slyorm/<能力>`，`dml/` 层级取消） | §7 §10 |
 | 2 | Collection 的泛型参数 | **泛型只落在构造期**：`NewCollection[M](db, table)` 用 M 绑定表模型，返回非泛型的 `*Collection`（类型层面不区分表，列集合与主键以 `*model.Model` 固化）；方法各自收投影类型 T —— 列集合与主键看 M，读写形态看 T | R1 |
 | 3 | 表名 | **构造期显式必填**（支持 `schema.table`）；同一模型可映射多张表；不使用 `TableName()` / `RegisterTable`（那是 insert 独立使用的机制） | R1.4 |
 | 4 | Get 未命中 | 返回 **`(nil, nil)`**（门面转译 `dbwm.ErrNoRows`），业务判 nil | R3.2 |
@@ -701,7 +701,7 @@ slyorm.RegisterUser(fn) // fn: 断言 csx.Context 取操作者，见 R12 示例
 > 本节是实现指引，不是需求约束。目标布局沿用既有包的分工原则：**一个包一个能力，按关注点分文件**。
 
 ```
-go.mod                        module slyorm（能力包全部在模块根下，dml/ 层级取消）
+go.mod                        module github.com/icdb37/slyorm（能力包全部在模块根下，dml/ 层级取消）
 
 slyorm.go      包注释与文件分工；DB 句柄（转发 dbwm：Open/New/NewSQL/Tx/Close）
 collection.go  Collection：对外 API —— 构造（表模型绑定、列集合、主键标记）与

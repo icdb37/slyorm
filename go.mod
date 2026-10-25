@@ -1,4 +1,4 @@
-module slyorm
+module github.com/icdb37/slyorm
 
 go 1.27.0
 

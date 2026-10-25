@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"slyorm/dbwm"
-	"slyorm/util"
+	"github.com/icdb37/slyorm/dbwm"
+	"github.com/icdb37/slyorm/util"
 )
 
 // ctx 是 Build 的占位参数（核心算子是纯内存计算）。

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"slyorm/util"
+	"github.com/icdb37/slyorm/util"
 
 	_ "modernc.org/sqlite"
 )

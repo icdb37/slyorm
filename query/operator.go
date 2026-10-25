@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"slyorm/dbwm"
-	"slyorm/util"
+	"github.com/icdb37/slyorm/dbwm"
+	"github.com/icdb37/slyorm/util"
 )
 
 // ---------------------------------------------------------------------------

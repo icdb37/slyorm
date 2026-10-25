@@ -27,7 +27,7 @@ import (
 	"context"
 	"database/sql"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 )
 
 // DB 是门面句柄：连接 + 方言，全部由 dbwm 管理。

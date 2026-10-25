@@ -2,7 +2,7 @@
 
 ## 项目概览
 
-`slyorm` 是一个 Go 写的 ORM 库（module `slyorm`，Go 1.27）。核心思路：用**结构体 + `dbx` 标签**声明式描述一张表的读写语义，运行时用反射生成 SQL，调用方不写手写 SQL。
+`slyorm` 是一个 Go 写的 ORM 库（module `github.com/icdb37/slyorm`，Go 1.27）。核心思路：用**结构体 + `dbx` 标签**声明式描述一张表的读写语义，运行时用反射生成 SQL，调用方不写手写 SQL。
 
 - **文档先行**：每个能力先有 PRD（`docs/prd-*.md`），PRD 里编号的需求条目（R1、R2…）是实现的依据；代码注释用编号互引（如"见 PRD R3 ⑧"）。
 - **按能力分包**：一个能力一个包，放在模块根下（`model/`、`select/`、`query/`、`insert/`、`dbwm/`、`migration/`、`util/`）；业务门面在模块根包 `slyorm`（`Collection` 表访问器）。
@@ -124,7 +124,7 @@
 - 不随意新增依赖；`go.mod` 只放直接依赖，用 `go mod tidy` 保持整洁。
 - 提交前跑 `go vet ./...` 和 `go test ./...`。
 - 提交前自检（在仓库根执行；检测 grep 的通用门槛见 [rules/doc.md](rules/doc.md) §五）：
-  - 能力层不 import 根包与同层兄弟：`grep -rnE '"slyorm"|"slyorm/(insert|query|select|migration)"' --include=*.go --exclude=*_test.go model/ query/ select/ insert/ migration/ dbwm/ util/` —— 应无命中（根包 import 全部能力包，方向不可反；测试文件引用兄弟包做集成验证不算违规）；
+  - 能力层不 import 根包与同层兄弟：`grep -rnE '"github.com/icdb37/slyorm"|"github.com/icdb37/slyorm/(insert|query|select|migration)"' --include=*.go --exclude=*_test.go model/ query/ select/ insert/ migration/ dbwm/ util/` —— 应无命中（根包 import 全部能力包，方向不可反；测试文件引用兄弟包做集成验证不算违规）；
   - 具体实现未泄漏：`grep -rnE "sql\.DB|sql\.Tx" --include=*.go --exclude=*_test.go model/ query/ select/ insert/ migration/ dbwm/ util/ slyorm.go collection.go collection_helper.go list.go types.go audit.go migrate.go 2>/dev/null | grep -v "[/][/]"` —— 逐条核对，只允许 `dbwm/deps.go` 的适配器内嵌字段与各 `NewSQL` 形参（`dbwm/`、`insert/`、根包 `slyorm.go`），其余命中即违规（注释过滤必须写 `[/][/]`，写成 `//` 在 ugrep 下会吞掉全部输出）；
   - 错误格式统一：`grep -rnE "fmt\.Errorf\(|errors\.New\(" --include=*.go --exclude=*_test.go model/ query/ select/ insert/ migration/ dbwm/ util/ *.go | grep -vE "(insert|query|dbwm|util|model|rows|slyorm|migration):|Errorf\(\s*$|New\(\s*$"` —— 输出即未带包名前缀的错误（多行 Errorf 的前缀在续行，已被行尾过滤）；前缀白名单随新增能力包同步，存量违规逐步清零，新代码 0 命中。
 

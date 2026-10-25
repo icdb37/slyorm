@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 
 	_ "modernc.org/sqlite"
 )
@@ -34,7 +34,7 @@ const personDDL = `CREATE TABLE person (
 	name TEXT NOT NULL,
 	age INT,
 	addr_city TEXT NOT NULL,
-	addr_screet TEXT NOT NULL,
+	addr_street TEXT NOT NULL,
 	payload TEXT NOT NULL,
 	nick TEXT,
 	created_at TIMESTAMP NOT NULL
@@ -43,7 +43,7 @@ const personDDL = `CREATE TABLE person (
 // 写规则测试模型。
 type Address struct {
 	City   string `dbx:"city"`
-	Screet string `dbx:"screet"`
+	Street string `dbx:"street"`
 }
 type person struct {
 	ID        int64          `dbx:"id,autopk"`
@@ -64,7 +64,7 @@ func TestBuildInsertIR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildInsertIR: %v", err)
 	}
-	wantCols := []string{"name", "age", "addr_city", "addr_screet", "payload", "nick", "created_at"}
+	wantCols := []string{"name", "age", "addr_city", "addr_street", "payload", "nick", "created_at"}
 	if strings.Join(ir.Columns, ",") != strings.Join(wantCols, ",") {
 		t.Fatalf("列清单 =\n%v\n期望\n%v", ir.Columns, wantCols)
 	}
@@ -214,7 +214,7 @@ func TestInsertExec(t *testing.T) {
 }
 
 // BuildInsert 只生成语句不落库；语句与 dbwm 执行路径的渲染**逐字一致**
-//（同一份渲染器，见 prd-slyorm §3 评审 F6）。
+// （同一份渲染器，见 prd-slyorm §3 评审 F6）。
 func TestBuildInsert(t *testing.T) {
 	db, _ := openDB(t)
 	p := &person{Name: "赵六"}

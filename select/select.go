@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"slyorm/dbwm"
-	"slyorm/model"
+	"github.com/icdb37/slyorm/dbwm"
+	"github.com/icdb37/slyorm/model"
 )
 
 // Plan 是一个投影类型的读取计划：静态列集合 + 扫描目标构造方式。

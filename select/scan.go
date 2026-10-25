@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"slyorm/model"
+	"github.com/icdb37/slyorm/model"
 )
 
 // ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ func isBasicValue(t reflect.Type) bool {
 // ---------------------------------------------------------------------------
 
 // nullZero 基本值类型字段的 NULL 兜底扫描目标：NULL 时写 Go 零值
-//（string→""、数值→0、bool→false、[]byte→nil），非 NULL 按 driver.Value
+// （string→""、数值→0、bool→false、[]byte→nil），非 NULL 按 driver.Value
 // 契约转换；字符串源可宽松转数值 / 布尔（SQLite 动态类型下 TEXT 列读进
 // 数值字段的场景），转不动报错。
 type nullZero struct {

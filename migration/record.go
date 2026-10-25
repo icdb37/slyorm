@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 )
 
 // ---------------------------------------------------------------------------

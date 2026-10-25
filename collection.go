@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	"slyorm/dbwm"
-	"slyorm/insert"
-	"slyorm/model"
-	rows "slyorm/select" // 包名 rows：select 是 Go 关键字，不能作包名
+	"github.com/icdb37/slyorm/dbwm"
+	"github.com/icdb37/slyorm/insert"
+	"github.com/icdb37/slyorm/model"
+	rows "github.com/icdb37/slyorm/select" // 包名 rows：select 是 Go 关键字，不能作包名
 )
 
 // ---------------------------------------------------------------------------

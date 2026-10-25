@@ -572,7 +572,7 @@ dbwm.RegisterOperator("contains", func(d dbwm.Dialect, c *dbwm.Wcond) (string, [
 ## 6. API 一览
 
 ```go
-import "slyorm/dbwm"
+import "github.com/icdb37/slyorm/dbwm"
 
 // 句柄
 db, err := dbwm.Open("sqlite", ":memory:")   // 探测库型 → 选方言

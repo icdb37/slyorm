@@ -2,7 +2,7 @@
 
 > 本文只覆盖一件事：**把一个模型对象写进数据库**。
 > 写侧选项总表见 [§3.2](#32-选项总表与-insert-相关)；读侧（查询条件）的选项与语义见 [prd-select.md](prd-select.md)，
-> 落地实现见 [`insert/`](../insert/)（包 `slyorm/insert`，产出 `*dbwm.Insert` / `*dbwm.Update` IR），
+> 落地实现见 [`insert/`](../insert/)（包 `github.com/icdb37/slyorm/insert`，产出 `*dbwm.Insert` / `*dbwm.Update` IR），
 > 已适配 SQLite / MySQL / PostgreSQL（方言差异见 [§3.3](#33-数据库方言)，方言在 [prd-dbwm.md](prd-dbwm.md)）。
 
 ## 目录
@@ -203,7 +203,7 @@ INSERT INTO "<表>"("<列1>","<列2>",...) VALUES(?,?,...)
 ```go
 type Person struct {
 	ID      int64   `dbx:"id,autopk"`
-	Address Address `dbx:"addr_,inline"`  // 展开：addr_city、addr_screet
+	Address Address `dbx:"addr_,inline"`  // 展开：addr_city、addr_street
 	Extra   Extra   `dbx:"-"`              // 忽略
 	Remark  Remark                        // 没写 dbx → 忽略
 }
@@ -225,17 +225,17 @@ dbx:"<前缀>,inline[,选项...]"
 ```
 
 - 前缀以 `"{prefix}_"` 的形式拼在**每个子字段列名**前面；
-- **前缀末尾的下划线可写可不写**：`dbx:"addr,inline"` 与 `dbx:"addr_,inline"` 等价，最终列名都是 `addr_city`、`addr_screet`；
+- **前缀末尾的下划线可写可不写**：`dbx:"addr,inline"` 与 `dbx:"addr_,inline"` 等价，最终列名都是 `addr_city`、`addr_street`；
 - 前缀可以为空：`dbx:",inline"` → 子字段沿用自己的列名，不加前缀；此时若与父结构体其它列撞名，解析期报错（见 ⑦）。
 
 ```go
 type Person struct {
 	ID      int64   `dbx:"id,autopk"`
-	Address Address `dbx:"addr_,inline"`   // → addr_city、addr_screet
+	Address Address `dbx:"addr_,inline"`   // → addr_city、addr_street
 }
 type Person2 struct {
 	ID      int64   `dbx:"id,autopk"`
-	Address Address `dbx:",inline"`         // → city、screet（不加前缀）
+	Address Address `dbx:",inline"`         // → city、street（不加前缀）
 }
 ```
 
@@ -264,7 +264,7 @@ type Model struct {
 整个嵌套结构不参与时写 `dbx:"-"`（**整组**都不产生列）：
 
 ```go
-Address Address `dbx:"-"`               // addr_city / addr_screet 都不存在
+Address Address `dbx:"-"`               // addr_city / addr_street 都不存在
 ```
 
 嵌套结构上不再支持 `omit` 这类"随值变化"的选项 —— 子列要么恒参与，要么整个结构不参与（见 R4）。
@@ -285,7 +285,7 @@ Address Address `dbx:"-"`               // addr_city / addr_screet 都不存在
 ```go
 type Address struct {
 	City   string `dbx:"city"`
-	Screet string `dbx:"screet"`
+	Street string `dbx:"street"`
 }
 
 type Person struct {
@@ -297,10 +297,10 @@ type Person struct {
 }
 ```
 
-`p := &Person{Name: "aaa", Address: Address{City: "SH", Screet: "Road"}}`
+`p := &Person{Name: "aaa", Address: Address{City: "SH", Street: "Road"}}`
 
 ```sql
-INSERT INTO "person"("name","addr_city","addr_screet","age","created_at") VALUES(?,?,?,?,?)
+INSERT INTO "person"("name","addr_city","addr_street","age","created_at") VALUES(?,?,?,?,?)
 -- 参数：["aaa", "SH", "Road", NULL, 2026-10-23T...]
 ```
 
@@ -316,12 +316,12 @@ type Person struct {
 	Address Address `dbx:"payload,json"`   // → 一列 payload
 }
 
-p := &Person{Address: Address{City: "SH", Screet: "Road"}}
+p := &Person{Address: Address{City: "SH", Street: "Road"}}
 ```
 
 ```sql
 INSERT INTO "person"("payload") VALUES(?)
--- 参数：["{\"city\":\"SH\",\"screet\":\"Road\"}"]
+-- 参数：["{\"city\":\"SH\",\"street\":\"Road\"}"]
 ```
 
 规则：
@@ -336,7 +336,7 @@ INSERT INTO "person"("payload") VALUES(?)
 
 **验收**
 
-- `Person{Name:"aaa"}` → 列含 `name`、`addr_city`、`addr_screet`、`age`，不含 `id`；
+- `Person{Name:"aaa"}` → 列含 `name`、`addr_city`、`addr_street`、`age`，不含 `id`；
 - 嵌套结构字段没写 `inline` → 整组不产生任何列；
 - 展开后列名重复 → 解析期报错并指出冲突列名；
 - `dbx:"payload,json"` → 只产生一列 `payload`，参数是序列化后的 JSON 字符串；
@@ -639,7 +639,7 @@ INSERT INTO "person"("payload") VALUES(?)
 | 有 `deff`/`defv` + `null`，值零 | ✅ | 默认值优先：写默认值（不是 NULL） |
 | 嵌套结构子字段（`inline`） | ✅ | Go 零值；列名带前缀 |
 | `json` 字段，值非零 | ✅ | —— （整一列，值是 JSON 字符串） |
-| `json` 字段，值为零 | ✅ | 写序列化结果（`{"city":"","screet":""}`） |
+| `json` 字段，值为零 | ✅ | 写序列化结果（`{"city":"","street":""}`） |
 | `json` 字段（`*T`），为 nil | ✅ | SQL `NULL` |
 | 结构体字段，**没写 `inline`** | ❌ | 整个字段忽略 |
 | **未标注 `dbx`** 的字段 | ❌ | 整个字段忽略（连列名都不推导） |

@@ -3,7 +3,7 @@ package slyorm
 import (
 	"context"
 
-	"slyorm/insert"
+	"github.com/icdb37/slyorm/insert"
 )
 
 // ---------------------------------------------------------------------------

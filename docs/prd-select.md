@@ -422,8 +422,8 @@ query.RegisterOperator("contains", func(d util.Dialect, col string, v any) (stri
 ## 5. API 一览
 
 ```go
-import "slyorm/query"   // 包名 query：select 是 Go 关键字，不能作包名
-import "slyorm/util"    // Range 等共享类型（SQL 方言在 dbwm，本包不再需要方言）
+import "github.com/icdb37/slyorm/query"   // 包名 query：select 是 Go 关键字，不能作包名
+import "github.com/icdb37/slyorm/util"    // Range 等共享类型（SQL 方言在 dbwm，本包不再需要方言）
 
 // 解析条件结构体 → 条件树模板（按类型缓存，可复用；只看类型，与值无关）
 tpl, err := query.ParseWhere(&PersonQuery{})

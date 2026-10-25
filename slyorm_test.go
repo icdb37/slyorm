@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 
 	_ "modernc.org/sqlite"
 )

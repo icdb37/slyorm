@@ -1,6 +1,6 @@
 package slyorm
 
-import "slyorm/util"
+import "github.com/icdb37/slyorm/util"
 
 // ---------------------------------------------------------------------------
 // 通用数据库类型

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"slyorm/dbwm"
-	"slyorm/query"
+	"github.com/icdb37/slyorm/dbwm"
+	"github.com/icdb37/slyorm/query"
 
 	_ "modernc.org/sqlite"
 )
@@ -30,15 +30,15 @@ func openDB(t *testing.T) (*dbwm.DB, *sql.DB) {
 
 // 全行模型与投影模型。
 type row struct {
-	ID        int64      `dbx:"id,autopk"`
-	Name      string     `dbx:"name"`
-	Age       int        `dbx:"age"`
-	Nick      *string    `dbx:"nick"`
-	Born      time.Time  `dbx:"born"`
-	Died      *time.Time `dbx:"died"`
-	Payload   []string   `dbx:"payload,json"`
-	AddrCity  string     `dbx:"addr_city"`
-	AddrSt    string     `dbx:"addr_st"`
+	ID       int64      `dbx:"id,autopk"`
+	Name     string     `dbx:"name"`
+	Age      int        `dbx:"age"`
+	Nick     *string    `dbx:"nick"`
+	Born     time.Time  `dbx:"born"`
+	Died     *time.Time `dbx:"died"`
+	Payload  []string   `dbx:"payload,json"`
+	AddrCity string     `dbx:"addr_city"`
+	AddrSt   string     `dbx:"addr_st"`
 }
 type addr struct {
 	AddrCity string `dbx:"addr_city"`

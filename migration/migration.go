@@ -1,8 +1,8 @@
 // Package migration 数据迁移：按水位执行业务提供的 SQL 脚本目录（建表、
 // 初始化、结构修补），执行记录落在 sys_migration 表，已执行过的不重复执行。
 //
-// 脚本目录由业务 embed 提供并传入（fs.FS，根下按版本目录组织，形态见
-// example/migration 的 v1.0/），脚本文件名形如 {版本号}_{序号}_{名称}.sql。
+// 脚本目录由业务 embed 提供并传入（fs.FS，如 //go:embed v1.0/*.sql；装载时
+// 递归收集根下全部 .sql），脚本文件名形如 {版本号}_{序号}_{名称}.sql。
 // 执行经 dbwm：脚本文本走 ExecScript，留痕与水位走 IR，一脚本一事务 ——
 // 本包不 import database/sql、不持连接。
 //
@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"io/fs"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 )
 
 // Stats 一次迁移的执行统计。

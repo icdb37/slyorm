@@ -8,17 +8,17 @@ import (
 // R2 列名推导：首段 / col= / snake_case、inline 前缀链、json 单列、未标注忽略。
 type Address struct {
 	City   string `dbx:"city"`
-	Screet string `dbx:"screet"`
+	Street string `dbx:"street"`
 }
 
 type person struct {
-	ID        int64     `dbx:"id,autopk"`
-	Name      string    `dbx:"name"`
-	Age       int       `dbx:"age"`
-	Address   Address   `dbx:"addr_,inline"`
-	Extra     Extra     `dbx:"-"` // 整组忽略
-	Remark    string    // 未标注 dbx 忽略
-	CreatedAt time.Time `dbx:"created_at"`
+	ID        int64      `dbx:"id,autopk"`
+	Name      string     `dbx:"name"`
+	Age       int        `dbx:"age"`
+	Address   Address    `dbx:"addr_,inline"`
+	Extra     Extra      `dbx:"-"` // 整组忽略
+	Remark    string     // 未标注 dbx 忽略
+	CreatedAt time.Time  `dbx:"created_at"`
 	UpdatedAt *time.Time `dbx:"updated_at"`
 }
 
@@ -32,7 +32,7 @@ func TestWalkColumns(t *testing.T) {
 		t.Fatalf("Parse 出错: %v", err)
 	}
 	got := m.Names()
-	want := []string{"id", "name", "age", "addr_city", "addr_screet", "created_at", "updated_at"}
+	want := []string{"id", "name", "age", "addr_city", "addr_street", "created_at", "updated_at"}
 	if len(got) != len(want) {
 		t.Fatalf("列集合 =\n%v\n期望\n%v", got, want)
 	}
@@ -55,8 +55,8 @@ func TestWalkInlineNoPrefix(t *testing.T) {
 		t.Fatalf("Parse 出错: %v", err)
 	}
 	got := m.Names()
-	if got[1] != "city" || got[2] != "screet" {
-		t.Fatalf("无前缀展开的列名 = %v，期望 city/screet 不带前缀", got)
+	if got[1] != "city" || got[2] != "street" {
+		t.Fatalf("无前缀展开的列名 = %v，期望 city/street 不带前缀", got)
 	}
 }
 

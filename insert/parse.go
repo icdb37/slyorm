@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"slyorm/model"
-	"slyorm/util"
+	"github.com/icdb37/slyorm/model"
+	"github.com/icdb37/slyorm/util"
 )
 
 // ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ func validateColumn(c *Column) error {
 // applyOption 校验一条选项并解析需要预解析的值（defv 字面量）。
 //
 // 业务注册过的选项调 handler；其余不认的选项原样留在 Opts 里，不阻断业务
-//（读规则专属的 op= / comb=、建表侧的 type= / default= / unique= …）。
+// （读规则专属的 op= / comb=、建表侧的 type= / default= / unique= …）。
 func applyOption(c *Column, key string, val string) error {
 	if h, ok := lookupCustomOption(key); ok {
 		return h(c, val)

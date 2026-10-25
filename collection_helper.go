@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"strings"
 
-	"slyorm/dbwm"
-	"slyorm/query"
-	rows "slyorm/select" // 包名 rows：select 是 Go 关键字，不能作包名
+	"github.com/icdb37/slyorm/dbwm"
+	"github.com/icdb37/slyorm/query"
+	rows "github.com/icdb37/slyorm/select" // 包名 rows：select 是 Go 关键字，不能作包名
 )
 
 // ---------------------------------------------------------------------------

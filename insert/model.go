@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"slyorm/model"
-	"slyorm/util"
+	"github.com/icdb37/slyorm/model"
+	"github.com/icdb37/slyorm/util"
 )
 
 // ---------------------------------------------------------------------------

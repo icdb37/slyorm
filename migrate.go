@@ -4,7 +4,7 @@ import (
 	"context"
 	"io/fs"
 
-	"slyorm/migration"
+	"github.com/icdb37/slyorm/migration"
 )
 
 // Migrate 按水位执行业务提供的 SQL 脚本目录（建表、初始化、结构修补），

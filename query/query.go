@@ -39,7 +39,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 )
 
 // ---------------------------------------------------------------------------

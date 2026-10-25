@@ -3,7 +3,7 @@ package rows
 import (
 	"reflect"
 
-	"slyorm/dbwm"
+	"github.com/icdb37/slyorm/dbwm"
 )
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ type collector[T any] struct {
 }
 
 // newCollector 构造一次查询的行工厂；结果切片预分配为空切片
-//（无命中时返回 len 0 的非 nil 切片，见 prd-slyorm R4.2）。
+// （无命中时返回 len 0 的非 nil 切片，见 prd-slyorm R4.2）。
 func newCollector[T any](p *Plan) *collector[T] {
 	return &collector[T]{p: p, rows: make([]*T, 0, 8)}
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"slyorm/util"
+	"github.com/icdb37/slyorm/util"
 )
 
 // ---------------------------------------------------------------------------

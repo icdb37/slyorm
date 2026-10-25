@@ -277,8 +277,8 @@ mgx 的流程语义（水位、跳过、一脚本一事务、失败留痕与重�
 
 ```go
 import (
-    "slyorm"
-    appmg "myapp/migration" // 业务自己的脚本目录包（与 slyorm/migration 无关）
+    "github.com/icdb37/slyorm"
+    appmg "myapp/migration" // 业务自己的脚本目录包（与 github.com/icdb37/slyorm/migration 无关）
 )
 
 // 业务侧脚本目录（形态同 example/migration）：

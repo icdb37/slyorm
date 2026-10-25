@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"slyorm/util"
+	"github.com/icdb37/slyorm/util"
 )
 
 // ---------------------------------------------------------------------------
