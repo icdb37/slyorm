@@ -1,0 +1,107 @@
+# ---------- Go ----------
+# 编译产物
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试输出
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Go workspace 文件（多 module 工作区场景，非主 module 文件应忽略）
+go.work
+go.work.sum
+
+# 依赖目录（Go modules 默认不提交 vendor；如确需 vendor，取消下一行注释）
+# vendor/
+
+# 编译/构建脚本产物
+bin/
+dist/
+build/
+
+# ---------- 数据库 ----------
+# SQLite 文件（sqlc 引擎为 sqlite，运行时数据库文件不提交）
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ---------- 配置与密钥 ----------
+# 环境变量文件
+.env
+.env.*
+!.env.example
+
+# 本地配置覆盖（嵌入式配置目录下的非示例配置）
+assets/config/*.local.yaml
+assets/config/*.local.yml
+# 仅忽略真实配置，保留示例
+!assets/config/*.example.yaml
+!assets/config/*.example.yml
+
+# 密钥、证书、PEM 等
+*.pem
+*.key
+*.crt
+*.p12
+
+# ---------- 日志与临时文件 ----------
+*.log
+logs/
+tmp/
+temp/
+
+# ---------- IDE 与编辑器 ----------
+# VS Code
+.vscode/
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# JetBrains (GoLand / IntelliJ)
+.idea/
+*.iml
+*.iws
+
+# 其他
+*.swp
+*.swo
+*~
+
+# ---------- 操作系统 ----------
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# ---------- sqlc 生成代码 ----------
+# sqlc 生成的 Go 代码默认应纳入版本控制（项目约定）。
+# 若团队选择不提交生成产物，将下方两行取消注释并提交 "internal/feature/users/" 内的代码清理。
+# internal/feature/users/*.go
+# internal/feature/users/*.sql.go
+
+tmp/
+temp/
+
+# ---------- 本地 Agent 工具链接 ----------
+# .agents/ 是指向 .claude/ 的本地目录联接（junction），规则以 .claude/ 为准
+.agents/
+# AGENTS.md 是指向 .claude/CLAUDE.md 的本地硬链接
+AGENTS.md
+example/
