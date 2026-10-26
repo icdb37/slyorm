@@ -314,7 +314,8 @@ type Result struct {
 2. 渲染流程中，**凡是标准 SQL 覆盖得到的部分不进方言** —— 条件组的括号、`AND`/`OR`/`NOT` 的连接、算子关键字（`=` `<>` `LIKE` `IN` `IS NULL`…）、`ORDER BY` 的写法、`COUNT(*)`、`INSERT INTO … VALUES` 的骨架都是标准 SQL，由 dbwm 的通用拼装器负责；将来真出现方言差异（如 `NULLS FIRST/LAST` 的排序），再把对应方法提进方言；
 3. **占位符由渲染器统一分配编号** —— 渲染路径（算子、INSERT / UPDATE 的值）向渲染器要占位符，拿到的就是方言的形式（PostgreSQL 的 `$1、$2…`），编号在整条语句里连续（见 R5）；
 4. 方言实现采用"基础实现 + 嵌入覆盖"：ANSI 是基础，MySQL / PostgreSQL 嵌入 ANSI 只覆盖差异点；
-5. 方言是**并发安全**的只读对象（嵌入的空结构体），可被多个句柄共享。
+5. 方言是**并发安全**的只读对象（嵌入的空结构体），可被多个句柄共享；
+6. **错误识别不进 `Dialect` 接口** —— 驱动错误的识别是**可选扩展** `ErrorClassifier`（`ClassifyError(err) (Kind, bool)`，见 [prd-error.md](prd-error.md) R2）：方言知道自己的驱动怎么报约束错误，自定义方言不实现也不影响编译，只是识别精度落到通用兜底。
 
 ```go
 type Dialect interface {
@@ -440,12 +441,14 @@ func QuoteIdent(d Dialect, ident string) string
 7. **自增值由 dbwm 取回、由上层写回**：插入返回 `Result{IDs, RowsAffected}`，`IDs` 是本次由数据库生成的自增值，按行序对应 `Rows`；dbwm 不做字段回填（它不认识模型，见 §4.2 的边界说明）；
    - 方言推算不可靠时（如 MySQL 多行 INSERT 的 `LastInsertId` 只给第一行）→ **报错**，不返回可能错位的 ID；
    - 走 `RETURNING` 取回时（PostgreSQL）`RowsAffected` = 取回的行数；`LastInsertId` 路径照常取 `sql.Result`；
-   - 没有自增列时 `IDs` 为空。
+   - 没有自增列时 `IDs` 为空；
+8. **执行路径的驱动错误包装成 `*dbwm.Error`** —— 带类别（唯一冲突 / 类型与值不匹配 / 非空 / 外键 / CHECK / 其他）、动作、约束名与出错语句，底层驱动错误原样保留并可 `errors.As` 穿透；业务侧的判定接口在根包 `slyorm`（见 [prd-error.md](prd-error.md) R1 / R4）；
+9. **框架自身的错误不是数据库错误** —— 渲染期参数错误、模型解析错误等不进 `*dbwm.Error`，类别为"未知"，业务据此区分"参数写错了"与"数据库出问题了"。
 
 **验收**：
 
 - `Qryone` 未命中 → `errors.Is(err, dbwm.ErrNoRows)` 为真；
-- 驱动返回的唯一性冲突 → 错误里能看到原始驱动错误（`%w`）；
+- 驱动返回的唯一性冲突 → 错误里能看到原始驱动错误（`%w`），且 `errors.Is(err, dbwm.ErrUnique)` 为真；
 - 批量插入 2000 行 × 3 列 → 自动拆成多条语句，不触发驱动参数上限错误；
 - 插入单行自增主键 → 返回的 `IDs` 长度为 1，值等于库里的自增值。
 
@@ -641,6 +644,8 @@ res, err = db.Delete(ctx, &dbwm.Delete{Table: "person", Where: cond})
 ```
 
 - 错误一律以 `dbwm: ` 开头；"没有行"用 `dbwm.ErrNoRows`；
+- 执行路径的数据库错误是 `*dbwm.Error`（带类别 / 约束名 / 语句），判定接口见 [prd-error.md](prd-error.md)：
+  `dbwm.KindOf(err)` / `dbwm.ConstraintOf(err)` / `dbwm.IsUnique(err)` / `dbwm.IsTypeMismatch(err)` / `dbwm.IsNotNull(err)` / `dbwm.IsForeignKey(err)` / `dbwm.IsCheck(err)`；类别哨兵 `dbwm.ErrUnique` 等用 `errors.Is` 判定；
 - 条件树、条件组、条件、排序项、聚合项由上层构造（字段全是导出的，构造不做校验，校验在渲染期）；
 - 分页由 `Paging.Page`（从 1 起）与 `Paging.Size`（0 = 不限）表达，offset 由 dbwm 推导；取一行用 `Query`（不带分页参数）；
 - 插入返回的 `Result.IDs` 由**上层**写回模型字段 —— dbwm 不认识模型。
@@ -732,6 +737,8 @@ dbwm/                          数据库访问中间层（模块根下）
   option.go    构造选项：Option / WithDialect（方言）
   ir.go        抽象数据类型：Op / Wcond / Comb / Node / Wnode / Sorts / Agg / Query / Paging / PagedQuery / Insert / Update / Delete，以及写入结果 Result
   dialect.go   方言接口 + ANSI / MySQL / PostgreSQL 实现
+  err.go       错误类型：类别 Kind、类别哨兵、*Error、判定接口
+  errclass.go  驱动错误识别：ErrorClassifier、方言识别规则与通用兜底、约束名提取
   operator.go  算子表、算子注册、值形态校验（in/nin 集合展开）
   sql.go       语句渲染骨架与各语句的渲染入口：SELECT / COUNT / INSERT / UPDATE / DELETE
   sql_select.go SELECT 的子句拼装：列清单 / 分组 / 排序 / 分页

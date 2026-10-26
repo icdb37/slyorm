@@ -365,6 +365,35 @@ func TestUpdateDropsPK(t *testing.T) {
 	}
 }
 
+// R10 omit：零值列不进 SET，原值保持。
+type userOmitUpd struct {
+	Name   string `dbx:"name,omit"`
+	Status int    `dbx:"status,omit"`
+}
+
+func TestUpdateOmit(t *testing.T) {
+	_, users, _ := openUsers(t)
+	u := &user{Name: "旧名", Status: 3}
+	mustCreate(t, users, u)
+
+	// name 非零 → 进 SET；status 零值 → 不进 SET，原值保持。
+	if err := users.Update[IDQuery, userOmitUpd](tctx, &IDQuery{ID: u.ID}, &userOmitUpd{Name: "新名"}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	got, err := users.Get[IDQuery, user](tctx, &IDQuery{ID: u.ID})
+	if err != nil || got == nil {
+		t.Fatalf("回查失败: %v", err)
+	}
+	if got.Name != "新名" || got.Status != 3 {
+		t.Fatalf("omit 列的零值应保持原值: name=%q status=%d", got.Name, got.Status)
+	}
+
+	// 全零值的更新集 → 没有可更新的列，报错。
+	if err := users.Update[IDQuery, userOmitUpd](tctx, &IDQuery{ID: u.ID}, &userOmitUpd{}); err == nil {
+		t.Fatal("omit 列全为零值时应当报错（没有可更新的列）")
+	}
+}
+
 // R9 Delete：命中删除；空条件拒绝；未命中不报错。
 func TestDelete(t *testing.T) {
 	_, users, _ := openUsers(t)

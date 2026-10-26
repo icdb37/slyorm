@@ -46,12 +46,13 @@
 | --- | --- | --- |
 | 建表 / DDL | `type=` `null=` `unique=` `index=` `fk=` `default=` | 建表 PRD |
 | 查询 | `op=` `comb=` `sort=` `agg=` 以及读规则、条件分组 | 查询 PRD |
-| 更新 / 删除 | `UPDATE` 的列判定、`DELETE` 的定位 | 更新/删除 PRD |
+| 更新 / 删除 | `UPDATE` 的列判定、`DELETE` 的定位 | 更新见 [prd-update.md](prd-update.md)；删除见 [prd-slyorm.md](prd-slyorm.md) R9 |
 
 > 这些选项在本 PRD 中不做语义规定：标签里可以被解析（当前实现会解析并原样保留到列的 `Opts`），但**不参与 INSERT 的任何行为**。
 > 写包里**不认得**的选项统一按"未知选项"处理：**忽略但保留到 `Opts`，不报错** ——
 > 读规则专属的选项（`op=` `comb=` `sort=` `agg=` 等）由查询包解释，
-> 已移除的选项（`omit` `omitempty` `force` 等）本就没有语义，两者都不该阻断写入。
+> 已移除的选项（`omitempty` `force` 等）本就没有语义，两者都不该阻断写入。
+> `omit` 是个例外：写包**认它**（取值按布尔校验），但它**只在 UPDATE 的 SET 阶段生效**（零值列不进 `SET`，见 [prd-update.md](prd-update.md) R10）—— INSERT 的列清单恒定，它不参与 INSERT 的任何行为。
 > 反过来，写入专属选项（`autopk` `deff` `defv`）出现在查询模型里属于误用 —— 由查询包按它自己的规则处理，本 PRD 不做规定。
 > `pk` 与 `auto` **不是本包的选项**：主键组只在 UPDATE/DELETE 里用于定位，普通自增列在本包没有意义 —— 自增主键一律写 `autopk`。它们出现在标签里按未知选项处理（忽略但保留到 `Opts`，不报错）。
 
@@ -108,11 +109,12 @@ dbx:"<列名>[,<选项>...]"
 | `autopk` | bool | 自增主键 | 值为零时该列**不参与** INSERT，成功后回填自增值 |
 | `deff=` | 函数名 | 默认值**函数** | 零值时调用注册的 Go 函数，取值写回结构体并写入该列 |
 | `defv=` | 字面量 | 默认**值** | 零值时写入该常量（按字段类型解析，解析期即校验） |
+| `omit` | bool | 零值当成没有值 | **INSERT 不生效**（列清单恒定，见 R4.1）；UPDATE 的 SET 阶段生效：零值列不进 `SET`（[prd-update.md](prd-update.md) R10） |
 
 > `col=` `json` `inline` 读写通用；`null` `autopk` `deff` `defv` 是**写规则专属**，在查询模型里出现会报错。
 > `default=` 是 DDL 侧的 SQL 默认值，与 `defv=`（常量默认值）不是一回事。
 > `force` **已移除**：本包不认它（按未知选项处理：忽略但保留到 `Opts`）。自增列要写显式值，把值直接赋给字段即可（见 R6）；UPDATE 要写零值，用指针字段表达（见本文 §6 API 一览）。
-> `omit` **已移除**：本包不认它（按未知选项处理：忽略但保留到 `Opts`）。不参与写入用 `dbx:"-"`，零值写 `NULL` 用 `null`（见 R4）。
+> `omit` **在 INSERT 里不生效**：列清单恒定（见 R4.1），零值照写；它在 UPDATE 的 SET 阶段生效（零值列不进 `SET`，见 [prd-update.md](prd-update.md) R10）。不参与写入用 `dbx:"-"`，零值写 `NULL` 用 `null`（见 R4）。
 >
 > **`pk` 与 `auto` 不在本表里 —— 本包只支持 `autopk`**：`pk`（主键组）只用来在 UPDATE/DELETE 里定位记录，
 > `auto`（普通自增列）在本包没有意义。两者出现在标签里都被忽略（保留到 `Opts`），不报错。
@@ -267,7 +269,7 @@ type Model struct {
 Address Address `dbx:"-"`               // addr_city / addr_street 都不存在
 ```
 
-嵌套结构上不再支持 `omit` 这类"随值变化"的选项 —— 子列要么恒参与，要么整个结构不参与（见 R4）。
+嵌套结构**字段本身**只认 `col` 与 `inline`（写别的选项解析期报错）—— `omit` 这类"随值变化"的选项写在结构字段上没有意义：子列要么恒参与，要么整个结构不参与（见 R4）。子列各自成列，可以单独写 `omit`（UPDATE 的 SET 阶段零值跳列，见 [prd-update.md](prd-update.md) R10）。
 
 **⑥ 指针型嵌套结构**
 
@@ -327,7 +329,7 @@ INSERT INTO "person"("payload") VALUES(?)
 规则：
 
 1. `json` 字段**不参与嵌套展开** —— 它就是单独一列，列名照常推导（`dbx:"payload,json"` → `payload`；`dbx:",json"` → 字段名的 snake_case）；
-2. 写入时整个值用 `encoding/json` 序列化成字符串；**序列化成什么形态由该类型自己的 `json` 标签决定**（不是 `dbx` 标签 —— `dbx` 描述数据库列，`json` 描述 JSON 形态，两者互不干涉）；
+2. 写入时整个值用 `encoding/json` 序列化成字符串；**序列化成什么形态由该类型自己的 `json` 标签决定**（不是 `dbx` 标签 —— `dbx` 描述数据库列，`json` 描述 JSON 形态，两者互不干涉）；序列化失败（值放不进 json 列）挂 `dbwm.ErrTypeMismatch` 哨兵，业务侧按"类型与值不匹配"判定（见 [prd-error.md](prd-error.md) R5）；
 3. 字段是 `*T` 且为 nil → 该列写 SQL `NULL`（不是字符串 `"null"`）；
 4. `json` 与 `inline` **互斥**，同时写解析期报错；
 5. `json` 列不参与列名前缀链，它就是一个普通列；`null` 对它不适用（`json` 与 `null` 互斥）。
@@ -360,7 +362,7 @@ INSERT INTO "person"("payload") VALUES(?)
 5. `null` 同时表达 DDL 语义：这一列**可空**；
 6. `null` 与 `autopk` / `json` 互斥（解析期报错）：自增列零值交给数据库生成，JSON 列的值是序列化后的字符串；
 7. `null` 与 `deff` / `defv` 同时出现时**默认值优先**：先补默认值，补完不再是零值，写的是默认值；
-8. `omit` 选项**已移除**：本包不认它（忽略但保留到 `Opts`）；不参与写入用 `dbx:"-"`，零值写 `NULL` 用 `null`。
+8. `omit` 在 **INSERT 里不生效**（列清单恒定，零值照写）；它在 UPDATE 的 SET 阶段生效（零值列不进 `SET`，见 [prd-update.md](prd-update.md) R10）。不参与写入用 `dbx:"-"`，零值写 `NULL` 用 `null`。
 
 **零值怎么判定**：
 
@@ -403,7 +405,7 @@ INSERT INTO "person"("payload") VALUES(?)
 3. **取值写回结构体字段**，并作为绑定参数写入该列；
 4. 函数可以读 `ctx`（当前用户、租户、trace id 等）；
 5. 函数未注册 → 报错并指出函数名；函数返回错误 → 报错并带上函数名；
-6. **默认值只在写包自身的 INSERT 时生效**；UPDATE 的取值语义由 [prd-slyorm.md](prd-slyorm.md) 定义 —— 门面的 Update 对 `deff=` 同样生效（零值才补，审计列刷新的落点，见其 R8 / R12），`defv=` 不生效。
+6. **默认值只在写包自身的 INSERT 时生效**；UPDATE 的取值语义由 [prd-update.md](prd-update.md) R4 定义 —— 门面的 Update 对 `deff=` 同样生效（零值才补，审计列刷新的落点，见 prd-slyorm R12），`defv=` 不生效。
 7. 与 `null` 同时出现时**默认值优先** —— 补完值不再是零值，写的是默认值而不是 `NULL`（见 R4）。
 
 > 为什么不支持 `deff=now()` 这种 SQL 片段：值拿不回结构体（要靠 `RETURNING`）、跨方言要各写一遍、有拼接风险。数据库端的默认值（`DEFAULT now()`）属于建表侧，用 `default=` 表达。
@@ -511,7 +513,7 @@ INSERT INTO "person"("payload") VALUES(?)
 **规则**：
 
 - `pk` **不是写包的选项** —— 出现在标签里被忽略（保留到 `Opts`），不报错；
-- 主键组（裸 `pk`）在 model 层是**主键标记**（供门面 Collection 的 Update 剔除 SET，见 [prd-slyorm.md](prd-slyorm.md) R1 / R8）；`pk=<组名>` 的组名不认（保留在 `Opts`），复合主键用多个裸 `pk` 表达；写包行为不变 —— 主键列照常参与 INSERT；
+- 主键组（裸 `pk`）在 model 层是**主键标记**（供门面 Collection 的 Update 剔除 SET，见 [prd-update.md](prd-update.md) R6）；`pk=<组名>` 的组名不认（保留在 `Opts`），复合主键用多个裸 `pk` 表达；写包行为不变 —— 主键列照常参与 INSERT；
 - 自增主键用 `autopk` 表达（见 R6），它已经包含主键语义；
 - 对写包来说，主键列就是个**普通列**：照常参与 INSERT，主键值由调用方自己指定（`autopk` 除外 —— 零值时由数据库生成）。
 
@@ -600,15 +602,16 @@ INSERT INTO "person"("payload") VALUES(?)
 4. 写规则里出现读规则专属选项（`op=` `comb=` 等）→ **忽略但保留到 `Opts`**（它们由查询包解释，写包不报错）；
 5. 语义冲突的选项组合（`deff`+`defv`、`json`+`inline`、`null`+`autopk`、`null`+`json`）→ **报错**并指出冲突的两个选项；
 6. 同一选项重复出现 → **报错**（视为笔误，不做"后者覆盖前者"）；
-7. **已移除的选项**（`omitempty` `omit` `force` 等）→ **忽略但保留到 `Opts`**（本包没有它们的语义，不报错、不静默丢弃）。
+7. **已移除的选项**（`omitempty` `force` 等）→ **忽略但保留到 `Opts`**（本包没有它们的语义，不报错、不静默丢弃）；`omit` 写包认它（取值按布尔校验），但只在 UPDATE 的 SET 阶段生效（[prd-update.md](prd-update.md) R10），INSERT 不受影响。
 
 > 规则 4 与 7 是同一件事：**写包只认自己这套选项**，其余的一律"忽略但保留"。
-> 保留而不是丢弃，是为了 DDL 生成器、文档生成器、别的插件还能读到"这里写过 `omit`"这个事实。
+> 保留而不是丢弃，是为了 DDL 生成器、文档生成器、别的插件还能读到"这里写过 `omitempty`"这个事实。
 
 **验收**
 
 - `dbx:"id,omitempty"` → 不报错，`omitempty` 保留在 `Opts` 里（写零值靠 `null`，不参与写入靠 `dbx:"-"`）；
-- `dbx:"tok,omit"` → 不报错，`omit` 保留在 `Opts` 里；
+- `dbx:"tok,omit"` → 不报错，`omit` 保留在 `Opts` 里（INSERT 不生效；UPDATE 的 SET 阶段零值跳列）；
+- `dbx:"tok,omit=maybe"` → 报错并指出 `omit` 的取值不是合法布尔值；
 - `dbx:"id,force"` → 不报错，`force` 保留在 `Opts` 里（自增列要写显式值直接把值赋给字段）；
 - `dbx:"a,op=like"` → 不报错，`op` 保留在 `Opts` 里；
 - `dbx:"id,pk,pk"` → 报错并提示选项重复；
@@ -637,6 +640,7 @@ INSERT INTO "person"("payload") VALUES(?)
 | 有 `defv`，值零 | ✅ | 先写常量默认值 |
 | 有 `defv`，值非零 | ✅ | —— （用原值） |
 | 有 `deff`/`defv` + `null`，值零 | ✅ | 默认值优先：写默认值（不是 NULL） |
+| `omit` 字段，值零 | ✅ | Go 零值 —— `omit` 在 INSERT 不生效（列清单恒定，见 [prd-update.md](prd-update.md) R10） |
 | 嵌套结构子字段（`inline`） | ✅ | Go 零值；列名带前缀 |
 | `json` 字段，值非零 | ✅ | —— （整一列，值是 JSON 字符串） |
 | `json` 字段，值为零 | ✅ | 写序列化结果（`{"city":"","street":""}`） |
@@ -687,7 +691,7 @@ insert.RegisterTable[Person]("person")     // 登记表名
 10. **写入钩子不在本 PRD 范围** —— 原型代码里已有实现（模型级 `BeforeInsert`/`AfterInsert`/`Validator` + 全局 `db.Use`），但需求（执行顺序、错误传播、与事务的关系）待重新拍板，本文暂不承诺；
 11. **数据库的列 `DEFAULT` 不再有机会生效** —— 所有列恒进 INSERT，`DEFAULT` 不会触发；
     需要数据库填的列（如 `created_at DEFAULT CURRENT_TIMESTAMP`）就不在模型里声明，交给 DDL 与数据库负责；
-12. **写包不认的选项不会报错** —— 读规则选项（`op=` `comb=` …）、已移除选项（`omit` `omitempty` `force`）与不属于写包的选项（`pk` `auto`）一律忽略但保留到 `Opts`；误写的选项名只能靠"读得懂 `Opts`"或将来的 `CheckTags()` 体检发现；
+12. **写包不认的选项不会报错** —— 读规则选项（`op=` `comb=` …）、已移除选项（`omitempty` `force`）与不属于写包的选项（`pk` `auto`）一律忽略但保留到 `Opts`；误写的选项名只能靠"读得懂 `Opts`"或将来的 `CheckTags()` 体检发现；
 13. **MySQL 批量插入不回填自增主键** —— MySQL 多行 INSERT 的 `LastInsertId` 是**第一行**的值（与 SQLite 的"最后一行"相反），且 MySQL 8 起 `innodb_autoinc_lock_mode` 默认为 2（interleaved），并发下一条语句分到的自增值不保证连续；批量 + `autopk` 零值时**报错**引导（逐条插入 `db.Insert`，或给自增列显式赋值），不回填可能错位的值；单条插入不受影响；
 14. **MySQL 不接受零值时间** —— `time.Time` 零值（`0001-01-01`）超出 MySQL `DATETIME` 最小值（`1000-01-01`），未标 `null`、未配 `deff=` 的零值时间字段在 MySQL 上会报 Error 1292；MySQL 用户的时间字段请标 `null` 或配 `deff=now`；
 15. **`json` 列在 PostgreSQL 上建议 DDL 用 `text`** —— 写入侧绑定的参数是字符串；列建成 `jsonb` 时 `lib/pq` 驱动可能报 42804（text 与 jsonb 无隐式转换），`pgx` 通常能按上下文推断；对应"待拍板 1"。
@@ -704,7 +708,7 @@ insert.RegisterTable[Person]("person")     // 登记表名
 | `force` | **已移除** —— 自增列的显式值靠"值非零即写入"表达；UPDATE 要写零值用指针字段；本包不认它（忽略但保留到 `Opts`） |
 | `pk` / `auto` 的位置 | **不属于写包的选项** —— 主键组只在 UPDATE/DELETE 里用于定位，普通自增列在本包没有意义；出现在标签里被忽略（保留到 `Opts`），不报错。自增主键一律写 `autopk` |
 | 自增值回填范围 | 只有 `autopk` 回填 |
-| `omit` | **已移除** —— 语义拆成两半：不让 ORM 写这一列 → `dbx:"-"`；零值要写 `NULL` → `null`；本包不认它（忽略但保留到 `Opts`） |
+| `omit` | **INSERT 里不生效** —— 列清单恒定，零值照写；零值要写 `NULL` 用 `null`，不参与写入用 `dbx:"-"`；写包认这个选项（取值按布尔校验），它在 UPDATE 的 SET 阶段生效（零值列不进 `SET`，见 [prd-update.md](prd-update.md) R10） |
 | 零值的落库形态 | 零值写 Go 零值是默认；标了 `null` 的列零值写 SQL `NULL`；指针为 nil 一律写 `NULL` |
 | 批量插入的对齐 | 列清单是模型的**静态属性**（除自增列），天然对齐 —— 不再需要"各行一致否则报错"的兜底 |
 | `json` 的范围 | 只管写入（INSERT 侧序列化）；读取侧的反序列化不在讨论范围 |

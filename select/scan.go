@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/icdb37/slyorm/dbwm"
 	"github.com/icdb37/slyorm/model"
 )
 
@@ -25,6 +26,12 @@ import (
 //
 // 实现 sql.Scanner 的字段直扫（自定义类型自己负责形态）。
 // ---------------------------------------------------------------------------
+
+// mismatchErr 构造"值放不进目标字段"的错误：带上 dbwm 的类别哨兵 ——
+// 业务侧据此判定为类型与值不匹配（见 prd-error R5）。
+func mismatchErr(format string, args ...any) error {
+	return fmt.Errorf("rows: "+format+": %w", append(args, dbwm.ErrTypeMismatch)...)
+}
 
 // timeType / timePtrType 时间字段的两种形态。
 var (
@@ -129,7 +136,7 @@ func (z nullZero) Scan(src any) error {
 		if dv.Kind() == reflect.Bool {
 			// 与 stdlib driver.Bool 语义一致：仅 0/1 可转 bool。
 			if s != 0 && s != 1 {
-				return fmt.Errorf("rows: 无法把 %d 写入 bool", s)
+				return mismatchErr("无法把 %d 写入 bool", s)
 			}
 			dv.SetBool(s == 1)
 			return nil
@@ -149,7 +156,7 @@ func (z nullZero) Scan(src any) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("rows: 无法把 %T 写入 %s", src, dv.Type())
+	return mismatchErr("无法把 %T 写入 %s", src, dv.Type())
 }
 
 // stringSrc src 为 string / []byte 文本时取出字符串（驱动常把文本列按 []byte 返回）。
@@ -176,14 +183,14 @@ func setFromString(dv reflect.Value, s string) error {
 	case reflect.Bool:
 		b, err := strconv.ParseBool(s)
 		if err != nil {
-			return err
+			return mismatchErr("无法把字符串 %q 解析进 %s: %w", s, dv.Type(), err)
 		}
 		dv.SetBool(b)
 	default:
 		if isIntKind(dv.Kind()) {
 			n, err := strconv.ParseInt(s, 10, dv.Type().Bits())
 			if err != nil {
-				return err
+				return mismatchErr("无法把字符串 %q 解析进 %s: %w", s, dv.Type(), err)
 			}
 			dv.SetInt(n)
 			return nil
@@ -191,7 +198,7 @@ func setFromString(dv reflect.Value, s string) error {
 		if isUintKind(dv.Kind()) {
 			n, err := strconv.ParseUint(s, 10, dv.Type().Bits())
 			if err != nil {
-				return err
+				return mismatchErr("无法把字符串 %q 解析进 %s: %w", s, dv.Type(), err)
 			}
 			dv.SetUint(n)
 			return nil
@@ -199,12 +206,12 @@ func setFromString(dv reflect.Value, s string) error {
 		if isFloatKind(dv.Kind()) {
 			f, err := strconv.ParseFloat(s, dv.Type().Bits())
 			if err != nil {
-				return err
+				return mismatchErr("无法把字符串 %q 解析进 %s: %w", s, dv.Type(), err)
 			}
 			dv.SetFloat(f)
 			return nil
 		}
-		return fmt.Errorf("rows: 无法把字符串 %q 写入 %s", s, dv.Type())
+		return mismatchErr("无法把字符串 %q 写入 %s", s, dv.Type())
 	}
 	return nil
 }
@@ -214,18 +221,18 @@ func setFromInt(dv reflect.Value, n int64) error {
 	switch {
 	case isIntKind(dv.Kind()):
 		if dv.OverflowInt(n) {
-			return fmt.Errorf("rows: %d 溢出 %s", n, dv.Type())
+			return mismatchErr("%d 溢出 %s", n, dv.Type())
 		}
 		dv.SetInt(n)
 	case isUintKind(dv.Kind()):
 		if n < 0 || dv.OverflowUint(uint64(n)) {
-			return fmt.Errorf("rows: %d 溢出 %s", n, dv.Type())
+			return mismatchErr("%d 溢出 %s", n, dv.Type())
 		}
 		dv.SetUint(uint64(n))
 	case isFloatKind(dv.Kind()):
 		dv.SetFloat(float64(n))
 	default:
-		return fmt.Errorf("rows: 无法把 int64 写入 %s", dv.Type())
+		return mismatchErr("无法把 int64 写入 %s", dv.Type())
 	}
 	return nil
 }
@@ -308,7 +315,7 @@ func parseFlexTime(src any) (t time.Time, ok bool, err error) {
 	case float64:
 		return unixToTime(int64(v)), true, nil
 	}
-	return time.Time{}, false, fmt.Errorf("rows: 无法识别的时间源 %T", src)
+	return time.Time{}, false, mismatchErr("无法识别的时间源 %T", src)
 }
 
 // timeLayouts 覆盖常见 DATE / DATETIME / TIMESTAMP 字符串形态，
@@ -338,7 +345,7 @@ func parseTimeString(s string) (time.Time, bool, error) {
 	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return unixToTime(n), true, nil
 	}
-	return time.Time{}, false, fmt.Errorf("rows: 无法解析时间字符串 %q", s)
+	return time.Time{}, false, mismatchErr("无法解析时间字符串 %q", s)
 }
 
 // unixToTime 按 Unix 时间戳数量级选择单位并按 UTC 解析：
@@ -377,7 +384,7 @@ func (f flexJSON) Scan(src any) error {
 	}
 	s, ok := stringSrc(src)
 	if !ok {
-		return fmt.Errorf("rows: json 列不支持 %T 源", src)
+		return mismatchErr("json 列不支持 %T 源", src)
 	}
 	if s == "" {
 		dv.SetZero() // 空串与"未设置"同形：库里"空"只有一种表示
@@ -390,7 +397,7 @@ func (f flexJSON) Scan(src any) error {
 		dv = dv.Elem()
 	}
 	if err := json.Unmarshal([]byte(s), dv.Addr().Interface()); err != nil {
-		return fmt.Errorf("rows: json 反序列化失败: %w", err)
+		return mismatchErr("json 反序列化失败: %w", err)
 	}
 	return nil
 }

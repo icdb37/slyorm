@@ -24,6 +24,9 @@ const (
 	keyAutoPK = "autopk"
 	keyDeff   = "deff"
 	keyDefv   = "defv"
+	// keyOmit 零值当成"没有值"：读侧整条条件跳过，写侧这一列不进 SET。
+	// 写侧只在 UPDATE 生效 —— INSERT 的列清单恒定（见 prd-update R10）。
+	keyOmit = "omit"
 )
 
 // ---------------------------------------------------------------------------
@@ -33,6 +36,19 @@ const (
 // OptionHandler 处理一条自定义选项，把值写进列元信息。
 type OptionHandler func(c *Column, value string) error
 
+// builtinOptions 是写包内置的选项名：自定义选项不得覆盖它们
+// （覆盖即 panic，见 rules/code.md §4.3）。
+var builtinOptions = map[string]bool{
+	keyCol:    true,
+	keyNull:   true,
+	keyJSON:   true,
+	keyInline: true,
+	keyAutoPK: true,
+	keyDeff:   true,
+	keyDefv:   true,
+	keyOmit:   true,
+}
+
 var (
 	optionMu      sync.RWMutex
 	customOptions = map[string]OptionHandler{}
@@ -40,7 +56,8 @@ var (
 
 // RegisterOption 注册业务自定义选项。
 //
-// 选项名不可覆盖：已注册的选项重名直接 panic（注册表纪律，见 rules/code.md §4.3）。
+// 选项名不可覆盖：已注册的选项重名、内置选项名一律 panic（注册表纪律，见
+// rules/code.md §4.3）—— 覆盖内置会让内置语义静默失效。
 // 注意：模型元信息按类型缓存，选项只在模型**第一次被解析**时处理 ——
 // 与 RegisterTable 一样，注册必须在该选项所在的模型第一次被使用之前完成。
 //
@@ -59,6 +76,9 @@ func RegisterOption(key string, h OptionHandler) {
 	defer optionMu.Unlock()
 	if _, dup := customOptions[key]; dup {
 		panic(fmt.Sprintf("insert: 选项 %q 已注册，不可覆盖", key))
+	}
+	if builtinOptions[key] {
+		panic(fmt.Sprintf("insert: 选项 %q 是内置选项，不可覆盖", key))
 	}
 	customOptions[key] = h
 }

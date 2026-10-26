@@ -94,7 +94,7 @@ business ─┬─→ slyorm（门面） ──→ dbwm ──→ sql.DB
 | `model` | 列名推导的**唯一入口**：静态列集合、主键标记、路径 | `model/` | [prd-slyorm.md §7](prd-slyorm.md) |
 | `rows`（`select/`） | 行模型投影计划、RowFactory、扫描目标（NULL 兜底 / 时间兼容 / JSON） | `select/` | [prd-slyorm.md §6](prd-slyorm.md) |
 | `query` | 读规则：条件结构体 → `*dbwm.Wnode`（值成形：like 补 %、区间展开） | `query/` | [prd-select.md](prd-select.md) |
-| `insert` | 写规则：模型 → `*dbwm.Insert` / `Update` IR 与执行入口 | `insert/` | [prd-insert.md](prd-insert.md) |
+| `insert` | 写规则：模型 → `*dbwm.Insert` / `Update` IR 与执行入口 | `insert/` | [prd-insert.md](prd-insert.md) / [prd-update.md](prd-update.md) |
 | `migration` | 数据迁移：按水位执行业务 SQL 脚本目录并留痕（`sys_migration`） | `migration/` | [prd-migration.md](prd-migration.md) |
 | `dbwm` | SQL 渲染与执行、方言、事务（连接接口归它所有） | `dbwm/` | [prd-dbwm.md](prd-dbwm.md) |
 | `util` | 共用工具：标签文本处理、取值与零值判定、`Range[T]` | `util/` | —— |
@@ -219,6 +219,8 @@ business ─┬─→ slyorm（门面） ──→ dbwm ──→ sql.DB
 | [prd-select.md](prd-select.md) | 读规则：`dbx` 读侧选项、条件树、算子（`query`） |
 | [prd-slyorm.md](prd-slyorm.md) | 业务门面：`Collection`、扫描语义、分页协议、审计列（根包 + `rows` + `model`） |
 | [prd-migration.md](prd-migration.md) | 数据迁移：脚本装载、水位、留痕（`migration` + `dbwm.ExecScript`） |
+| [prd-error.md](prd-error.md) | 数据库错误分类：类别、识别规则、业务侧判定接口（`dbwm` + 根包） |
+| [prd-update.md](prd-update.md) | 数据更新：SET 列判定、值形态、定位条件、主键剔除（`insert` + 根包 + `dbwm`） |
 
 ---
 
@@ -232,6 +234,8 @@ business ─┬─→ slyorm（门面） ──→ dbwm ──→ sql.DB
 | 写规则（写入 IR） | 已落地 | `insert/` |
 | 行模型投影与扫描 | 已落地 | `select/`（包名 `rows`） |
 | 数据迁移（水位执行 + 留痕） | 已落地 | `migration/` |
+| 数据库错误分类（类别识别 + 业务侧判定） | 已落地 | `dbwm/` + 根包 `slyorm` |
+| 数据更新（SET 列判定 / 值成形 / 定位条件） | 已落地 | `insert/` + 根包 `slyorm` + `dbwm/` |
 | 业务门面（Collection / 分页 / 审计 / Migrate） | 已落地 | 根包 `slyorm` |
 | JOIN、分组聚合的门面入口 | 未落地 | dbwm 的 IR 已具备，用到时再加 |
 | PG / MySQL 真库验证 | 未做 | 当前验证以内存 SQLite + 替身连接为主（prd-migration §7 限制 8） |

@@ -87,11 +87,11 @@ func (db *DB) execInsertChunk(ctx context.Context, table string, columns []strin
 	}
 	res, err := ex.ExecContext(ctx, stmt, args...)
 	if err != nil {
-		return Result{}, execFail("执行 INSERT", stmt, err)
+		return Result{}, db.execFail("执行 INSERT 语句", stmt, err)
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return Result{}, execFail("取影响行数", stmt, err)
+		return Result{}, db.execFail("取影响行数", stmt, err)
 	}
 	out := Result{RowsAffected: affected}
 	if autoPK == "" {
@@ -99,7 +99,7 @@ func (db *DB) execInsertChunk(ctx context.Context, table string, columns []strin
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return out, execFail("取自增值", stmt, err)
+		return out, db.execFail("取自增值", stmt, err)
 	}
 	ids, ok := db.dialect.BatchAutoIDs(id, len(rows))
 	if !ok {
@@ -121,19 +121,19 @@ func (db *DB) execReturning(ctx context.Context, stmt string, args []any) (Resul
 	}
 	rows, err := qr.QueryContext(ctx, stmt, args...)
 	if err != nil {
-		return Result{}, execFail("执行 INSERT", stmt, err)
+		return Result{}, db.execFail("执行 INSERT 语句", stmt, err)
 	}
 	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
-			return Result{}, execFail("读取自增值", stmt, err)
+			return Result{}, db.execFail("读取自增值", stmt, err)
 		}
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return Result{}, execFail("执行 INSERT", stmt, err)
+		return Result{}, db.execFail("执行 INSERT 语句", stmt, err)
 	}
 	return Result{RowsAffected: int64(len(ids)), IDs: ids}, nil
 }
@@ -155,11 +155,11 @@ func (db *DB) Update(ctx context.Context, up *Update) (Result, error) {
 	}
 	res, err := ex.ExecContext(ctx, stmt, args...)
 	if err != nil {
-		return Result{}, execFail("执行 UPDATE", stmt, err)
+		return Result{}, db.execFail("执行 UPDATE 语句", stmt, err)
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return Result{}, execFail("取影响行数", stmt, err)
+		return Result{}, db.execFail("取影响行数", stmt, err)
 	}
 	return Result{RowsAffected: affected}, nil
 }
@@ -196,11 +196,11 @@ func (db *DB) Delete(ctx context.Context, del *Delete) (Result, error) {
 	}
 	res, err := ex.ExecContext(ctx, stmt, args...)
 	if err != nil {
-		return Result{}, execFail("执行 DELETE", stmt, err)
+		return Result{}, db.execFail("执行 DELETE 语句", stmt, err)
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return Result{}, execFail("取影响行数", stmt, err)
+		return Result{}, db.execFail("取影响行数", stmt, err)
 	}
 	return Result{RowsAffected: affected}, nil
 }

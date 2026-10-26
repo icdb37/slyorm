@@ -103,6 +103,7 @@ func buildPlan(ctx context.Context, model *Model, elem reflect.Value) (*plan, er
 //
 // 与插入同一套值成形；差异：deff 生效（审计列刷新）、defv 不生效，
 // 自增列照常进 SET —— 主键剔除由门面按表模型的主键集合做（prd-slyorm R8.3）。
+// omit 列的零值不进 SET（prd-update R10）。
 func buildUpdatePlan(ctx context.Context, model *Model, elem reflect.Value) (*plan, error) {
 	p := &plan{}
 	for i := range model.Columns {
@@ -110,6 +111,11 @@ func buildUpdatePlan(ctx context.Context, model *Model, elem reflect.Value) (*pl
 		rv := fieldAt(elem, c)
 		if err := applyDefaults(ctx, c, rv, false); err != nil {
 			return nil, err
+		}
+		// omit：零值当成"没有值" —— 这一列不进 SET，原值保持。
+		// 判定在默认值补齐之后：deff 补过的列不再是零值，照常进 SET。
+		if c.BoolOpt(keyOmit) && util.IsZero(rv) {
+			continue
 		}
 		val, err := bindValue(c, rv)
 		if err != nil {
@@ -119,7 +125,7 @@ func buildUpdatePlan(ctx context.Context, model *Model, elem reflect.Value) (*pl
 		p.values = append(p.values, val)
 	}
 	if len(p.columns) == 0 {
-		return nil, fmt.Errorf("insert: %s 没有可更新的列", model.Table)
+		return nil, fmt.Errorf("insert: 没有可更新的列（全部列都被 omit 跳过）")
 	}
 	return p, nil
 }

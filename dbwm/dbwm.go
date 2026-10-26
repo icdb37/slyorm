@@ -37,6 +37,8 @@
 //	option.go    构造选项（Option / WithDialect）
 //	ir.go        抽象数据类型（IR）
 //	dialect.go   方言接口与 ANSI / MySQL / PostgreSQL 实现
+//	err.go       错误类型：类别 Kind、类别哨兵、*Error、判定接口
+//	errclass.go  驱动错误识别：方言识别规则与通用兜底、约束名提取
 //	operator.go  算子表与算子注册
 //	where.go     条件树 → SQL 片段与参数（括号规则、参数顺序）
 //	sql.go       语句渲染骨架与各语句的渲染入口

@@ -147,6 +147,7 @@ dbx 语义**以本项目 PRD 为准**（prd-insert / prd-select / prd-dbwm / 本
 | `dbx:"status,int=1"` | SQL 类型 int + DEFAULT 1 | `dbx:"status"` | 类型与 SQL 默认值归建表 SQL；插入时零值照写 `0`（与模板一致）；要 Go 侧零值默认配 `defv=1` |
 | `dbx:"created_at,timestamp=now()"` | 类型 + `now()` 默认 | `dbx:"created_at"` | 同上；要"未设置时应用层补当前时间"配 `deff=now` |
 | 值字段 | 全写（零值也写） | 同 | 列清单是静态属性（prd-insert R4.1） |
+| 零值列不写 | 模板不适用 | `dbx:"col,omit"` | UPDATE 的 SET 阶段零值列不进 `SET`（prd-update R10）；INSERT 不生效（列清单恒定） |
 | nil 指针字段 | **跳过该列**，交给 DDL 零值 DEFAULT | **写 SQL `NULL`** | 与读取侧"指针 NULL → nil"闭环；列的可空性由建表 SQL 保证；需要"由数据库填"的列不在模型里声明（`dbx:"-"`） |
 | 零值 `time.Time` | 跳过该列交 DEFAULT | 写零值时间；要"未设置交给默认"配 `deff=now` | 默认值取回并写回结构体（prd-insert R5） |
 | `json` 列零值 | 跳过该列；空载荷落 `''` | **照常序列化写入**（零值也写 `{"...":"..."}`）；`*T` nil → `NULL` | 读写对称：读侧 NULL / 空串 → 零值（R6） |
@@ -208,7 +209,7 @@ col, err := slyorm.NewCollection[bo.User](sdb, bo.TableUser)
 u.col.Get[cco.IDQuery, bo.User](ctx, qry)   // → col.Get[slyorm.IDQuery, bo.User](ctx, qry)，同形（IDQuery 换用门面类型）
 ```
 
-> `cco.Range` / `cco.IDQuery` / `IDsQuery` / `CodeQuery` / `StatusRequest` 由门面提供同义类型（`slyorm.Range` 等，见 R11），业务直接换用，不再在 cco 里维护；其余自定义查询 / 局部更新结构体把标签按 §4.2 改写即可继续使用（它们本来就是按列声明的字段组合类型）。
+> `cco.Range` / `cco.IDQuery` / `IDsQuery` / `CodeQuery` / `StatusRequest` 由门面提供同义类型（`slyorm.Range` 等，见 R11），业务直接换用，不再在 cco 里维护；其余自定义查询 / 更新投影结构体把标签按 §4.2 改写即可继续使用（它们本来就是按列声明的字段组合类型）。
 
 三类**不迁移就静默出错**的高风险写法（迁移检查清单）：
 
@@ -371,7 +372,7 @@ type CreatedQuery struct {
    | 指针字段 `*V` | 字段地址（database/sql 原生 `**V`） | 置 nil | 按需分配、写入 |
    | `time.Time` / `*time.Time` | 时间兼容目标 | 值保持零值 / 指针置 nil | `time.Time` 直扫；字符串按候选布局解析（`2006-01-02 15:04:05[.fff]`、ISO、日期、紧凑式）；数值按数量级当 Unix 时间戳（秒 / 毫秒 / 微秒 / 纳秒），**按 UTC 解析**（与写侧 `defv` 的 UTC 口径对称；模板的 flexTime 用本地时区，属差异） |
    | `json` 标记字段 | JSON 目标 | 值还原零值 / 指针置 nil | TEXT 列的 JSON 文本 `Unmarshal` 进字段；**空串也还原零值**（与写侧"序列化永远写文本"对称） |
-   | 其余基本值类型（含命名类型与 `[]byte`） | NULL 兜底目标 | 写 Go 零值（`""` / `0` / `false` / nil） | 按 driver.Value 契约转换；字符串源可宽松转数值 / 布尔（SQLite 动态类型下 TEXT 列读进数值字段），转不动报错 |
+   | 其余基本值类型（含命名类型与 `[]byte`） | NULL 兜底目标 | 写 Go 零值（`""` / `0` / `false` / nil） | 按 driver.Value 契约转换；字符串源可宽松转数值 / 布尔（SQLite 动态类型下 TEXT 列读进数值字段），转不动报错 —— 报错挂 `dbwm.ErrTypeMismatch` 哨兵，业务侧按"类型与值不匹配"判定（见 [prd-error.md](prd-error.md) R5） |
 
 3. **兜底 / 兼容目标自带字段地址**（`nullZero{addr: &row.Age}` 形态，与模板 scan.go 同款）：`Scan` 即写业务字段 —— dbwm 的 `RowFactory` 没有"扫完之后"的钩子（prd-dbwm R8），写回不能依赖扫后回调；
 4. 实现 `sql.Scanner` 的字段直扫（自定义类型自己负责形态）；`sql.Null*` 家族同（prd-insert R3 ① 的单列类型）；
@@ -411,13 +412,15 @@ type CreatedQuery struct {
 
 **需求**：按条件更新指定列，全量 SET 语义明确，误操作被拦下。
 
+> UPDATE 的完整语义见 [prd-update.md](prd-update.md)：SET 列判定（R2）、值形态（R3）、默认值（R4）、定位条件（R5）、主键剔除（R6）、"不更新某列"的表达（R7）、执行与错误（R8）、返回值（R9）。本节只记门面的组织职责与对外形态。
+
 **规则**：
 
 1. `Update[Q, T](ctx, q *Q, p *T) error`：q 按读规则解析为条件树；p 按写规则解析（校验 ⊆ M 列集合）；
-2. **SET 列 = T 的全部列**（静态清单，零值也是有效值 —— 传零值结构体会把对应列清零，与模板一致）；值成形调用 **`insert/` 的 IR 构造入口**（`insert.BuildUpdateIR(ctx, v) (*dbwm.Update, error)`，改造后新增，见 §7 —— "`deff=` 在 Update 生效"的语义就承载在这个入口），与插入同一套（`null` 零值 → `NULL`、nil 指针 → `NULL`、`json` 序列化），差异是：**`deff=` 生效**（零值时调函数补值并写回结构体 —— 审计列刷新的落点，见 R12；非零值不覆盖）、**`defv=` 不生效**（静态常量没有"更新时刷新"的语义）；
-3. **主键列不进 SET** —— 剔除用的主键集合**只认 M**（R1.5 解析所得：`autopk` 列 + `pk` 列，含复合主键）；投影 T 自带的 `pk` 标记不参与剔除判定（否则用投影就能绕过剔除，零值主键清 PK 的静默损坏就回来了）；剔除后 SET 为空 → 报错（"无可更新字段（全部为主键）"）；
+2. **SET 列 = T 的全部列**（静态清单，零值也是有效值 —— 传零值结构体会把对应列清零，与模板一致；**`omit` 列零值时例外**，不进 `SET`，见 [prd-update.md](prd-update.md) R10）；值成形调用 **`insert/` 的 IR 构造入口**（`insert.BuildUpdateIR(ctx, v) (*dbwm.Update, error)`，改造后新增，见 §7 —— "`deff=` 在 Update 生效"的语义就承载在这个入口），与插入同一套（`null` 零值 → `NULL`、nil 指针 → `NULL`、`json` 序列化），差异是：**`deff=` 生效**（零值时调函数补值并写回结构体 —— 审计列刷新的落点，见 R12；非零值不覆盖）、**`defv=` 不生效**（静态常量没有"更新时刷新"的语义）；
+3. **主键列不进 SET** —— 剔除用的主键集合**只认 M**（R1.5 解析所得：`autopk` 列 + `pk` 列，含复合主键）；投影 T 自带的 `pk` 标记不参与剔除判定（否则用投影就能绕过剔除，零值主键清 PK 的静默损坏就回来了）；剔除后 SET 为空 → 报错（"无可更新字段（投影全部为主键列）"）；
 4. **条件取值后为空 → 报错**（"更新缺少过滤条件"，判定口径同 R3.4）；dbwm 也会拦（WHERE 为空报错，prd-dbwm R4.7），门面先拦，错误信息带模型与字段；
-5. **局部更新用投影类型**：只声明要改的列（如 `cco.StatusRequest`、`bo.UserUpdate`），与模板的手法一致；
+5. **只改部分列用投影类型**：投影里只声明要改的列（如 `cco.StatusRequest`、`bo.UserUpdate`），与模板的手法一致；
 6. 组装 `dbwm.Update{Table, Columns, Values, Where}` 交给 dbwm；返回值只有 error（影响行数不上浮，见已拍板 16）。
 
 **验收**：
@@ -553,7 +556,8 @@ type CreatedQuery struct {
 
 3. 缓存：M 元信息构造期解析一次；T 计划、Q 模板按类型缓存（`sync.Map`），构建失败不缓存；
 4. **注册点沿用各能力包**（门面不另设第二张表）：默认值函数 `insert.RegisterDefault`（门面的 `curuser` 走同一张表）、自定义选项 `RegisterOption`、当前操作用户 `slyorm.RegisterUser`（R12）；自定义算子见规则 5；
-5. **自定义算子只在 `query.RegisterOperator` 注册一次**：算子定义为"**语义 + 值成形**"—— 把值补成形、归约为**核心算子组合**（如 `prefix` → `like` + 值后缀 `%`），交给 dbwm 的永远是核心算子，业务不碰 `dbwm.RegisterOperator`；确有无法归约的算子（真·正则）才双注册（`query` 与 `dbwm` 各一次、名字一致）。注册必须发生在对应模型第一次被解析之前（prd-select R8.3、prd-insert R5）。
+5. **自定义算子只在 `query.RegisterOperator` 注册一次**：算子定义为"**语义 + 值成形**"—— 把值补成形、归约为**核心算子组合**（如 `prefix` → `like` + 值后缀 `%`），交给 dbwm 的永远是核心算子，业务不碰 `dbwm.RegisterOperator`；确有无法归约的算子（真·正则）才双注册（`query` 与 `dbwm` 各一次、名字一致）。注册必须发生在对应模型第一次被解析之前（prd-select R8.3、prd-insert R5）；
+6. **数据库错误的判定接口在门面**（见 [prd-error.md](prd-error.md) R4）：`slyorm.IsUnique` / `IsTypeMismatch` / `IsNotNull` / `IsForeignKey` / `IsCheck` / `ErrorKind` / `ConstraintOf` —— 业务只 import 门面就能判定错误类别，不必解析驱动错误文本。
 
 **验收**：
 
@@ -602,7 +606,7 @@ page, err := users.List[bo.UserQuery, bo.User](ctx, &slyorm.ListRequest[bo.UserQ
 // 写入
 err = users.Create(ctx, dat)                        // 自增回填进 dat.ID；默认值写回结构体
 err = users.Creates(ctx, people)                  // 批量：与 Create 同一张表；分块不自动包事务（R7.4）
-err = users.Update(ctx, qry, &bo.UserUpdate{Name: "新名"}) // 局部更新 = 投影类型
+err = users.Update(ctx, qry, &bo.UserUpdate{Name: "新名"}) // 只改投影里声明的列
 err = users.Delete(ctx, qry)
 
 // 通用类型（R11）：常用查询类型与 Range（分页协议见上）
@@ -611,6 +615,15 @@ r := &slyorm.Range[int]{Min: 0, Max: 100}
 
 // 审计列（R12）：装配期注入"从 ctx 取当前操作用户"，模型用 deff=curuser
 slyorm.RegisterUser(fn) // fn: 断言 csx.Context 取操作者，见 R12 示例
+
+// 错误判定（见 prd-error）：业务侧据此处理数据库报错的类别
+err = users.Create(ctx, dat)
+switch {
+case slyorm.IsUnique(err):        // 唯一索引 / 主键冲突 → 提示"已存在"
+case slyorm.IsTypeMismatch(err), slyorm.IsNotNull(err): // 值放不进列 → 参数错误
+}
+slyorm.ErrorKind(err)              // 错误类别（slyorm.Kind）
+slyorm.ConstraintOf(err)           // 约束名 / 冲突列（认不出时是空串）
 ```
 
 - 业务 store 层与模板的调用形态一一对应（见 §4.1 / §4.3）；
@@ -679,7 +692,7 @@ slyorm.RegisterUser(fn) // fn: 断言 csx.Context 取操作者，见 R12 示例
 | 9 | 扫描语义 | NULL→零值 / nil、时间多形态兼容、JSON 反序列化在 `select/`（rows）落地，**与模板的 nullZero / flexTime / flexJSON 同语义** | R6 |
 | 10 | nil 指针写入 | **写 SQL `NULL`**（不跳列）：与读侧"NULL → nil"闭环，列的可空性由业务的建表 SQL 保证；"由数据库填"的列不在模型里声明 | R7.3 §4.2 |
 | 11 | 批量插入 | **走 `Collection.Creates`**（与 Create 同一张表 —— `insert.InsertAll` 的表名机制与 Collection 的显式表名可能是两张表，批量走它会静默写错表）；分块不自动包事务等语义继承 `insert.InsertAll`；`InsertAll` 保留供独立使用 | R7.4 |
-| 12 | Update 的 SET | **投影类型的全列**（零值也写）；主键列剔除；局部更新 = 投影类型；`deff` 生效（审计刷新，零值才补）、`defv` 不生效 | R8 R12 |
+| 12 | Update 的 SET | **投影类型的全列**（零值也写）；主键列剔除；只改部分列 = 投影类型；`deff` 生效（审计刷新，零值才补）、`defv` 不生效；`omit` 列零值不进 SET（prd-update R10） | R8 R12 |
 | 13 | Update / Delete 空条件 | **门面先拦**（错误带模型与字段），dbwm 兜底 | R8.4 R9.2 |
 | 14 | 事务形态 | 只以 **ctx 传递**（`db.Tx`），Collection 不设事务句柄形态 | R10 |
 | 15 | 建表 | **不做**：`Migrate` / DDL 不实现，建表语句由业务手写 SQL 在自己的连接上执行；`type=` `default=` `unique=` `index=` 等建表选项不认（忽略但保留） | §1.3 §8 |
@@ -710,6 +723,7 @@ collection_helper.go Collection 的辅助实现：条件构造、投影列校验
 list.go        List 与分页协议类型（PageQuery/ListRequest/ListResponse）
 types.go       通用数据库类型（R11）：Range 再导出、IDQuery / IDsQuery / CodeQuery / StatusRequest
 audit.go       RegisterUser 与 curuser 默认值注册（R12）
+error.go       错误判定接口：类别别名与谓词（prd-error R4）
 
 model/                     表与列的元信息（新，package model）
   model.go       包注释；表模型元信息（列集合、主键、自增列）与解析入口（按类型缓存）

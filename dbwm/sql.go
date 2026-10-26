@@ -417,8 +417,3 @@ func stmtForErr(stmt string) string {
 	}
 	return stmt[:max] + "…（截断）"
 }
-
-// execFail 构造执行失败的错误：带上语句文本，错误信息才能指出"哪条语句"（见 R6.1）。
-func execFail(action, stmt string, err error) error {
-	return fmt.Errorf("dbwm: %s失败: %w；语句: %s", action, err, stmtForErr(stmt))
-}

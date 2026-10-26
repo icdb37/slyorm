@@ -20,6 +20,7 @@
 //	list.go       List 与分页协议类型（PageQuery/ListRequest/ListResponse）
 //	types.go      通用数据库类型：Range 再导出、IDQuery / IDsQuery / CodeQuery / StatusRequest
 //	audit.go      RegisterUser 与 curuser 默认值（审计列）
+//	error.go      错误判定接口：类别别名与谓词（见 docs/prd-error.md）
 //	migrate.go    Migrate：初始化脚本执行（转发 migration.Run，见 prd-migration）
 package slyorm
 

@@ -15,7 +15,7 @@ import (
 //   - 选项取值校验（null / json / autopk 的布尔取值、deff 非空）；
 //   - defv= 字面量按字段类型解析（解析期即校验）；
 //   - 语义冲突的选项组合报错（deff+defv、json+null、autopk+null）；
-//   - 跨规则选项（op=、comb=、读侧的 omit、建表侧的 type= …）忽略但保留。
+//   - 跨规则选项（op=、comb=、建表侧的 type= …）忽略但保留。
 // ---------------------------------------------------------------------------
 
 // writeColumn 把 model 包的静态列解释成写侧列。
@@ -57,7 +57,7 @@ func applyOption(c *Column, key string, val string) error {
 		return h(c, val)
 	}
 	switch key {
-	case keyNull, keyJSON, keyAutoPK:
+	case keyNull, keyJSON, keyAutoPK, keyOmit:
 		// 布尔选项：裸 flag 算 true，显式取值必须是合法布尔（null=false 表示关闭）。
 		if _, ok := util.ParseBoolValue(val); !ok {
 			return optErr(key, val)

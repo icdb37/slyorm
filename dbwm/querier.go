@@ -102,10 +102,10 @@ func (db *DB) query(ctx context.Context, q *PagedQuery, f RowFactory) (int, erro
 	}
 	rows, err := qr.QueryContext(ctx, stmt, args...)
 	if err != nil {
-		return 0, execFail("执行查询", stmt, err)
+		return 0, db.execFail("执行查询语句", stmt, err)
 	}
 	defer rows.Close()
-	return scanRows(rows, f)
+	return db.scanRows(rows, f)
 }
 
 // count 查总行数：有分组时是分组数。
@@ -120,7 +120,7 @@ func (db *DB) count(ctx context.Context, q *PagedQuery) (int64, error) {
 	}
 	var total int64
 	if err := qr.QueryRowContext(ctx, stmt, args...).Scan(&total); err != nil {
-		return 0, execFail("读取总行数", stmt, err)
+		return 0, db.execFail("读取总行数", stmt, err)
 	}
 	return total, nil
 }
@@ -129,10 +129,13 @@ func (db *DB) count(ctx context.Context, q *PagedQuery) (int64, error) {
 //
 // 扫描前校验列数：实际返回的列数必须等于 NewRow 给的地址个数 ——
 // 错位的扫描会静默写错字段，宁可报错。
-func scanRows(rows *sql.Rows, f RowFactory) (int, error) {
+//
+// 驱动侧的扫描失败按数据库错误分类（值放不进目标字段是"类型与值不匹配"，
+// 由扫描目标自己挂上哨兵，见 prd-error R5）。
+func (db *DB) scanRows(rows *sql.Rows, f RowFactory) (int, error) {
 	cols, err := rows.Columns()
 	if err != nil {
-		return 0, fmt.Errorf("dbwm: 读取结果集列信息失败: %w", err)
+		return 0, db.fail("读取结果集列信息", err)
 	}
 	n := 0
 	for rows.Next() {
@@ -141,12 +144,12 @@ func scanRows(rows *sql.Rows, f RowFactory) (int, error) {
 			return 0, fmt.Errorf("dbwm: 列数不符：结果集 %d 列，扫描目标 %d 个", len(cols), len(targets))
 		}
 		if err := rows.Scan(targets...); err != nil {
-			return 0, fmt.Errorf("dbwm: 扫描行失败: %w", err)
+			return 0, db.fail("扫描行", err)
 		}
 		n++
 	}
 	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("dbwm: 读取结果集失败: %w", err)
+		return 0, db.fail("读取结果集", err)
 	}
 	return n, nil
 }

@@ -118,7 +118,8 @@ func (c *errScriptConn) ExecContext(context.Context, string, ...any) (sql.Result
 // errScriptFail 是驱动失败的哨兵错误。
 var errScriptFail = errors.New("驱动失败")
 
-// TestExecScriptErrPassthrough 验证驱动错误可穿透、错误不带脚本正文。
+// TestExecScriptErrPassthrough 验证驱动错误可穿透、错误不带脚本正文，
+// 且类别可判定（prd-error R3.4：是数据库错误，归 KindOther）。
 func TestExecScriptErrPassthrough(t *testing.T) {
 	db := New(&errScriptConn{}, WithDialect(ANSI))
 	script := "CREATE TABLE very_long_table_name (" + strings.Repeat("c", 200) + " INT)"
@@ -131,5 +132,11 @@ func TestExecScriptErrPassthrough(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "very_long_table_name") {
 		t.Fatalf("错误不该带脚本正文: %v", err)
+	}
+	if got := KindOf(err); got != KindOther {
+		t.Fatalf("类别 = %v，期望 %v", got, KindOther)
+	}
+	if !errors.Is(err, ErrDatabase) {
+		t.Fatalf("错误 = %v，期望是数据库错误", err)
 	}
 }

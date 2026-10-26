@@ -63,7 +63,7 @@ func (db *DB) Tx(ctx context.Context, fn func(ctx context.Context) error) error 
 	}
 	tx, err := db.conn.BeginTx(ctx)
 	if err != nil {
-		return fmt.Errorf("dbwm: 开启事务失败: %w", err)
+		return db.fail("开启事务", err)
 	}
 	st := &txState{tx: tx}
 	txCtx := context.WithValue(ctx, txKey{}, st)
@@ -86,7 +86,7 @@ func (db *DB) Tx(ctx context.Context, fn func(ctx context.Context) error) error 
 		return err
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("dbwm: 提交事务失败: %w", err)
+		return db.fail("提交事务", err)
 	}
 	return nil
 }

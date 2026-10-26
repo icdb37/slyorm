@@ -6,7 +6,7 @@
 
 - **文档先行**：每个能力先有 PRD（`docs/prd-*.md`），PRD 里编号的需求条目（R1、R2…）是实现的依据；代码注释用编号互引（如"见 PRD R3 ⑧"）。
 - **按能力分包**：一个能力一个包，放在模块根下（`model/`、`select/`、`query/`、`insert/`、`dbwm/`、`migration/`、`util/`）；业务门面在模块根包 `slyorm`（`Collection` 表访问器）。
-- **当前进度**：已落地 dbwm（SQL 渲染与执行的中间层）、query（条件结构体 → `*dbwm.Wnode`）、insert（写规则 → `*dbwm.Insert`/`Update` IR）、model（列名推导唯一入口）、select/（包名 `rows`，行模型投影与扫描）、migration/（按水位执行业务 SQL 脚本目录并留痕）与门面 slyorm（见 `docs/prd-slyorm.md`、`docs/prd-migration.md`）。**不从模型生成 DDL**：建表 / 初始化脚本由业务手写 SQL，经 `db.Migrate` 执行。
+- **当前进度**：已落地 dbwm（SQL 渲染与执行的中间层，兼数据库错误分类）、query（条件结构体 → `*dbwm.Wnode`）、insert（写规则 → `*dbwm.Insert`/`Update` IR）、model（列名推导唯一入口）、select/（包名 `rows`，行模型投影与扫描）、migration/（按水位执行业务 SQL 脚本目录并留痕）与门面 slyorm（见 `docs/prd-slyorm.md`、`docs/prd-migration.md`、`docs/prd-error.md`、`docs/prd-update.md`）。**不从模型生成 DDL**：建表 / 初始化脚本由业务手写 SQL，经 `db.Migrate` 执行。
 
 ## 规范索引
 
@@ -49,13 +49,13 @@
 
 | 包 | 管什么 |
 | --- | --- |
-| `slyorm`（根包） | 业务门面：`DB` 句柄、`Collection`、分页协议、通用查询类型、`RegisterUser` 审计列 |
+| `slyorm`（根包） | 业务门面：`DB` 句柄、`Collection`、分页协议、通用查询类型、`RegisterUser` 审计列、错误判定接口（`IsUnique` 等） |
 | `model/` | 列名推导的**唯一入口**：静态列集合与主键标记，insert 与 select 共用 |
 | `select/`（`rows`） | 行模型投影计划、RowFactory、扫描目标（NULL 兜底 / 时间兼容 / JSON） |
 | `query/` | 读规则：条件结构体 → `*dbwm.Wnode`（值成形：like 补 %、区间展开） |
-| `insert/` | 写规则：模型 → `*dbwm.Insert`/`Update` IR 与执行入口 |
+| `insert/` | 写规则：模型 → `*dbwm.Insert`/`Update` IR 与执行入口（UPDATE 语义见 `docs/prd-update.md`） |
 | `migration/` | 数据迁移：按水位执行业务 SQL 脚本目录并留痕（`sys_migration`，见 `docs/prd-migration.md`） |
-| `dbwm/` | SQL 渲染与执行、方言、事务（连接接口归它所有） |
+| `dbwm/` | SQL 渲染与执行、方言、事务（连接接口归它所有）、数据库错误分类（类别 / 哨兵 / 识别，见 `docs/prd-error.md`） |
 | `util/` | 共用工具：标签文本处理、取值与零值判定、`Range[T]`（方言已归 `dbwm/`） |
 
 - **对外 API 只放在 `<能力>.go`**，且每个方法保持短小：方法的正文只写"准备 → 计划 → 执行"这样的骨架，机制下沉到对应文件。
@@ -96,7 +96,7 @@
 
 ## 5. `dbx` 标签约定
 
-- 选项全集见 `docs/prd-insert.md`（写规则）与 `docs/prd-select.md`（读规则，即查询条件）；写规则专属：`null` `autopk` `deff` `defv`；读写通用：`col` `json` `inline`。
+- 选项全集见 `docs/prd-insert.md`（写规则）与 `docs/prd-select.md`（读规则，即查询条件）；写规则专属：`null` `autopk` `deff` `defv`；读写通用：`col` `json` `inline` `omit`（`omit` 读写同一口径 —— 零值当成没有值：读侧整条条件跳过，写侧这一列不进 `SET`，写侧只在 UPDATE 生效）。
 - **未知选项忽略但保留**到 `Column.Opts`（不报错、不阻断写入）—— DDL 侧、查询侧的选项不该污染写包。
 - 选项名统一转小写；选项值按给定保留，只脱外层引号（成对引号才成组）。
 - 重复选项、语义冲突（`deff`+`defv`、`json`+`inline`、`null`+`autopk`）在**解析期**报错。

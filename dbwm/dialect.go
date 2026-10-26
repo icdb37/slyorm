@@ -23,6 +23,9 @@ import (
 //   - 写侧的取回生成值（Returning / BatchAutoIDs）；
 //   - 一条语句里绑定参数的上限（MaxParams）。
 //
+// 错误识别不进这个接口：驱动错误的识别是**可选扩展**（见 ErrorClassifier），
+// 自定义方言不实现也不影响编译。
+//
 // 方言实现是并发安全的只读对象（嵌入的空结构体），可以被多个句柄共享。
 type Dialect interface {
 	// Name 方言名，用于错误信息。
@@ -111,6 +114,11 @@ func (ansi) BatchAutoIDs(lastInsertID int64, n int) ([]int64, bool) {
 // MaxParams：SQLite 3.32 起是 32766。
 func (ansi) MaxParams() int { return 32766 }
 
+// ClassifyError 实现 ErrorClassifier：按 SQLite 的错误码与消息判定类别。
+//
+// ANSI 方言在本网主要用于 SQLite，错误码按 SQLite 的主码认。
+func (ansi) ClassifyError(err error) (Kind, bool) { return classifySQLite(err) }
+
 // mysql 是 MySQL 方言：标识符用反引号，其余同标准 SQL。
 type mysql struct{ ansi }
 
@@ -131,6 +139,9 @@ func (mysql) BatchAutoIDs(firstInsertID int64, n int) ([]int64, bool) {
 
 // MaxParams：MySQL 的占位符上限 65535。
 func (mysql) MaxParams() int { return 65535 }
+
+// ClassifyError 实现 ErrorClassifier：按 MySQL 的 errno 判定类别。
+func (mysql) ClassifyError(err error) (Kind, bool) { return classifyMySQL(err) }
 
 // postgres 是 PostgreSQL 方言：占位符是 $1、$2…，自增值用 RETURNING 取回。
 type postgres struct{ ansi }
@@ -156,3 +167,6 @@ func (postgres) BatchAutoIDs(int64, int) ([]int64, bool) {
 
 // MaxParams：PostgreSQL 的占位符上限 65535。
 func (postgres) MaxParams() int { return 65535 }
+
+// ClassifyError 实现 ErrorClassifier：按 PostgreSQL 的 SQLSTATE 判定类别。
+func (postgres) ClassifyError(err error) (Kind, bool) { return classifyPostgres(err) }

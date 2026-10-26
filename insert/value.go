@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/icdb37/slyorm/dbwm"
 	"github.com/icdb37/slyorm/util"
 )
 
@@ -36,7 +37,10 @@ func bindValue(c *Column, rv reflect.Value) (any, error) {
 		}
 		b, err := json.Marshal(util.Value(rv))
 		if err != nil {
-			return nil, fmt.Errorf("insert: 字段 %s 序列化 JSON 失败: %w", c.GoName, err)
+			// 值放不进 json 列 —— 挂上类别哨兵，业务侧按类型不匹配处理
+			// （见 prd-error R5）。
+			return nil, fmt.Errorf("insert: 字段 %s 序列化 JSON 失败: %w: %w",
+				c.GoName, err, dbwm.ErrTypeMismatch)
 		}
 		return string(b), nil
 	}

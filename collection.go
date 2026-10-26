@@ -52,7 +52,8 @@ func NewCollection[M any](db *DB, table string) (*Collection, error) {
 	if err := insert.ValidateModel(reflect.TypeOf(new(M))); err != nil {
 		return nil, fmt.Errorf("slyorm: 表模型 %s 的写规则校验失败: %w", m.Type, err)
 	}
-	return &Collection{wm: db.wm, table: table, m: m}, nil
+	c := &Collection{wm: db.wm, table: table, m: m}
+	return c, nil
 }
 
 // ---------------------------------------------------------------------------

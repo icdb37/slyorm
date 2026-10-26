@@ -3,6 +3,7 @@ package insert
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -111,6 +112,33 @@ func TestAutoPKExplicit(t *testing.T) {
 	}
 }
 
+// badJSON 的 json 列类型序列化不出（map 的键不是字符串 / 整数）。
+type badJSON struct {
+	ID   int             `dbx:"id,autopk"`
+	Data map[bool]string `dbx:"data,json"`
+}
+
+// R3⑨/prd-error R5.1 json 列序列化失败：值放不进 json 列 → 带 ErrTypeMismatch
+// 哨兵；发生在值到数据库之前，不算数据库错误（ErrDatabase 不命中）。
+func TestJSONSerializeFailCarriesKind(t *testing.T) {
+	_, err := BuildInsertIR(tctx, &badJSON{Data: map[bool]string{true: "a"}})
+	if err == nil {
+		t.Fatal("map[bool]string 序列化不出该报错")
+	}
+	if !errors.Is(err, dbwm.ErrTypeMismatch) {
+		t.Fatalf("错误 = %v，期望带 ErrTypeMismatch 哨兵", err)
+	}
+	if got := dbwm.KindOf(err); got != dbwm.KindTypeMismatch {
+		t.Fatalf("类别 = %v，期望 %v", got, dbwm.KindTypeMismatch)
+	}
+	if errors.Is(err, dbwm.ErrDatabase) {
+		t.Fatalf("值没到数据库，不该是数据库错误: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Data") {
+		t.Fatalf("错误 = %v，期望指出字段名", err)
+	}
+}
+
 // R5 defv 字面量：解析期按字段类型校验。
 type defvBad struct {
 	Age int `dbx:"age,defv=abc"`
@@ -164,6 +192,64 @@ func TestBuildUpdateIR(t *testing.T) {
 	// updated_at 零值：deff 生效 → 补默认值并写回。
 	if m.At.IsZero() {
 		t.Fatal("deff 在 Update 应补默认值并写回结构体")
+	}
+}
+
+// R10 omit：零值列不进 SET（写侧只在 UPDATE 生效，INSERT 不受影响）。
+type updOmit struct {
+	Name string    `dbx:"name,omit"`
+	Age  int       `dbx:"age,omit,null"`
+	Nick *string   `dbx:"nick,omit"`
+	At   time.Time `dbx:"at,omit,deff=now"`
+}
+
+func TestBuildUpdateIROmit(t *testing.T) {
+	blank := ""
+	m := &updOmit{Name: "新名", Nick: &blank}
+	up, err := BuildUpdateIR(tctx, m)
+	if err != nil {
+		t.Fatalf("BuildUpdateIR: %v", err)
+	}
+	// name 非零 → 进 SET；age 零值（omit 优先于 null）→ 不进；
+	// nick 指向空串（显式赋过零值）→ 进 SET；at 有 deff，补完非零 → 进 SET。
+	if strings.Join(up.Columns, ",") != "name,nick,at" {
+		t.Fatalf("SET 列 = %v，期望 name,nick,at", up.Columns)
+	}
+	if s, ok := up.Values[1].(string); !ok || s != "" {
+		t.Fatalf("nick 应写空串，得到 %#v", up.Values[1])
+	}
+}
+
+func TestBuildUpdateIROmitZero(t *testing.T) {
+	up, err := BuildUpdateIR(tctx, &updOmit{})
+	if err != nil {
+		t.Fatalf("BuildUpdateIR: %v", err)
+	}
+	// 零值的 omit 列一律不进 SET，只有 deff 补过值的 at 在。
+	if strings.Join(up.Columns, ",") != "at" {
+		t.Fatalf("SET 列 = %v，期望只有 at", up.Columns)
+	}
+}
+
+// R10.3 INSERT 不受影响：列清单恒定，omit 列照常写入。
+func TestInsertOmitsIgnored(t *testing.T) {
+	ir, err := BuildInsertIR(tctx, &updOmit{})
+	if err != nil {
+		t.Fatalf("BuildInsertIR: %v", err)
+	}
+	if strings.Join(ir.Columns, ",") != "name,age,nick,at" {
+		t.Fatalf("INSERT 列清单 = %v，期望 name,age,nick,at", ir.Columns)
+	}
+}
+
+// R10.6 列全部被 omit 跳过 → 没有可更新的列，报错。
+type updOmitAll struct {
+	Name string `dbx:"name,omit"`
+}
+
+func TestBuildUpdateIROmitAll(t *testing.T) {
+	if _, err := BuildUpdateIR(tctx, &updOmitAll{}); err == nil {
+		t.Fatal("全部列被 omit 跳过时应当报错")
 	}
 }
 

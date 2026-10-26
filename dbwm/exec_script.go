@@ -2,7 +2,6 @@ package dbwm
 
 import (
 	"context"
-	"fmt"
 	"strings"
 )
 
@@ -32,7 +31,7 @@ func (db *DB) ExecScript(ctx context.Context, script string) error {
 	if _, err := ex.ExecContext(ctx, script); err != nil {
 		// 错误不带脚本正文（可能极长，定位信息由上层带文件名补上）——
 		// 是 R6.1"错误信息带语句文本"的例外，见 R11.4。
-		return fmt.Errorf("dbwm: 执行脚本失败: %w", err)
+		return db.fail("执行脚本", err)
 	}
 	return nil
 }
